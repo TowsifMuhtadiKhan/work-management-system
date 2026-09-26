@@ -21,7 +21,7 @@ import { ROLE_LEVEL } from '@/types/enums'
  * the role-level heuristic. The DB remains the authoritative enforcer.
  */
 export function usePermissions(currentProfile: Profile | null | undefined) {
-  const isAdmin = currentProfile?.application_role === 'administrator'
+  const isAdmin = currentProfile?.is_active === true && currentProfile.application_role === 'administrator'
   const myRole: AppRole = currentProfile?.application_role ?? 'employee'
   const myRoleLevel = ROLE_LEVEL[myRole]
 
@@ -36,7 +36,7 @@ export function usePermissions(currentProfile: Profile | null | undefined) {
     assignedTo: string | undefined,
     assignedProfile?: Pick<Profile, 'id' | 'manager_id' | 'application_role'> | null
   ): boolean {
-    if (!currentProfile) return false
+    if (!currentProfile?.is_active) return false
     if (isAdmin) return true
     if (!assignedTo) return false
 
@@ -63,7 +63,7 @@ export function usePermissions(currentProfile: Profile | null | undefined) {
    * Returns true if the current user can create new tasks (team_lead and above).
    */
   function canCreateTask(): boolean {
-    if (!currentProfile) return false
+    if (!currentProfile?.is_active) return false
     return myRoleLevel >= ROLE_LEVEL['team_lead']
   }
 
@@ -78,7 +78,7 @@ export function usePermissions(currentProfile: Profile | null | undefined) {
    * Returns true if current user can view all reports.
    */
   function canViewReports(): boolean {
-    if (!currentProfile) return false
+    if (!currentProfile?.is_active) return false
     return myRoleLevel >= ROLE_LEVEL['team_lead']
   }
 

@@ -4,9 +4,24 @@ import type { DbProfileInsert, DbProfileUpdate } from '@/types/database'
 
 const PROFILE_SELECT = `
   *,
-  department:departments(*),
-  manager:profiles!profiles_manager_id_fkey(id, full_name, email, designation)
+  department:departments(*)
 `
+
+// Resolve managers without depending on a named self-referencing FK in PostgREST.
+async function withManagers(profiles: Profile[]): Promise<Profile[]> {
+  const ids = [...new Set(profiles.map((profile) => profile.manager_id).filter((id): id is string => !!id))]
+  if (!ids.length) return profiles.map((profile) => ({ ...profile, manager: null }))
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, full_name, email, designation')
+    .in('id', ids)
+  if (error) throw error
+  const managers = new Map((data ?? []).map((manager) => [manager.id, manager]))
+  return profiles.map((profile) => ({
+    ...profile,
+    manager: profile.manager_id ? managers.get(profile.manager_id) ?? null : null,
+  }))
+}
 
 // ─── Fetch a single profile by user id ───────────────────────────────────────
 
@@ -18,7 +33,7 @@ export async function fetchProfile(userId: string): Promise<Profile | null> {
     .maybeSingle()
 
   if (error) throw error
-  return data as Profile | null
+  return data ? (await withManagers([data as Profile]))[0] : null
 }
 
 // ─── Fetch all active profiles ────────────────────────────────────────────────
@@ -31,7 +46,7 @@ export async function fetchAllProfiles(): Promise<Profile[]> {
     .order('full_name')
 
   if (error) throw error
-  return (data ?? []) as Profile[]
+  return withManagers((data ?? []) as Profile[])
 }
 
 // ─── Fetch all profiles (including inactive) for admin ───────────────────────
@@ -43,7 +58,7 @@ export async function fetchAllProfilesAdmin(): Promise<Profile[]> {
     .order('full_name')
 
   if (error) throw error
-  return (data ?? []) as Profile[]
+  return withManagers((data ?? []) as Profile[])
 }
 
 // ─── Fetch profiles that can be assigned tasks (employees + team leads) ──────
@@ -73,7 +88,7 @@ export async function updateProfile(
     .single()
 
   if (error) throw error
-  return data as Profile
+  return (await withManagers([data as Profile]))[0]
 }
 
 // ─── Admin: create a profile record (after auth user has been created) ────────
@@ -86,7 +101,7 @@ export async function createProfile(payload: DbProfileInsert): Promise<Profile> 
     .single()
 
   if (error) throw error
-  return data as Profile
+  return (await withManagers([data as Profile]))[0]
 }
 
 // ─── Admin: toggle active status ─────────────────────────────────────────────

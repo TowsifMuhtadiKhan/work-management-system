@@ -1,0 +1,28 @@
+import { createClient } from '@supabase/supabase-js'
+import { supabase } from '@/lib/supabase/client'
+import type { DbProfileUpdate } from '@/types/database'
+
+export async function saveEmployee(id: string, changes: DbProfileUpdate) {
+  const { error } = await supabase.rpc('admin_update_profile', { p_id: id, p_changes: changes })
+  if (error?.code === 'PGRST202') {
+    throw new Error('Employee management needs the administration database update. See the setup instructions in docs/administration.md.')
+  }
+  if (error) throw error
+}
+
+export async function registerEmployee(fullName: string, email: string, password: string) {
+  const { data: admin, error: permissionError } = await supabase.rpc('is_admin')
+  if (permissionError) throw permissionError
+  if (!admin) throw new Error('Only an active administrator can add employees here.')
+  // A separate, nonpersistent auth client preserves the administrator's session.
+  // Registration uses public signup and always creates an employee, never an admin.
+  const registration = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storageKey: 'employee-registration' },
+  })
+  const { data, error } = await registration.auth.signUp({
+    email: email.trim(), password,
+    options: { data: { full_name: fullName.trim() }, emailRedirectTo: `${window.location.origin}/dashboard` },
+  })
+  if (error) throw error
+  return { needsConfirmation: !data.session }
+}

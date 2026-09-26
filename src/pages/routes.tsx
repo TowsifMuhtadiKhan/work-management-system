@@ -3,11 +3,15 @@ import { AppLayout } from '@/layouts/AppLayout'
 import { AuthLayout } from '@/layouts/AuthLayout'
 import { AdminLayout } from '@/layouts/AdminLayout'
 import { LoginPage } from '@/features/auth/LoginPage'
+import { SignupPage } from '@/features/auth/SignupPage'
 import { DashboardPage } from '@/features/dashboard/DashboardPage'
 import { DailyTasksPage } from '@/features/tasks/DailyTasksPage'
 import { MyTasksPage } from '@/features/my-tasks/MyTasksPage'
 import { ReportsPage } from '@/features/reports/ReportsPage'
 import { EmployeesPage } from '@/features/admin/employees/EmployeesPage'
+import { CatalogPage } from '@/features/admin/CatalogPage'
+import { SettingsPage } from '@/features/admin/SettingsPage'
+import { ProfilePage } from '@/features/auth/ProfilePage'
 
 // Lazy admin pages that are less frequently accessed
 const router = createBrowserRouter([
@@ -16,6 +20,7 @@ const router = createBrowserRouter([
     element: <AuthLayout />,
     children: [
       { path: '/login', element: <LoginPage /> },
+      { path: '/signup', element: <SignupPage /> },
     ],
   },
 
@@ -29,7 +34,7 @@ const router = createBrowserRouter([
       { path: '/my-tasks', element: <MyTasksPage /> },
       { path: '/reports', element: <ReportsPage /> },
       { path: '/marketing', element: <MarketingPlaceholder /> },
-      { path: '/profile', element: <ProfilePlaceholder /> },
+      { path: '/profile', element: <ProfilePage /> },
 
       // Admin routes — wrapped in AdminLayout guard
       {
@@ -37,11 +42,11 @@ const router = createBrowserRouter([
         children: [
           { path: '/admin', element: <Navigate to="/admin/employees" replace /> },
           { path: '/admin/employees', element: <EmployeesPage /> },
-          { path: '/admin/departments', element: <AdminPlaceholder title="Departments" /> },
-          { path: '/admin/task-types', element: <AdminPlaceholder title="Task Types" /> },
-          { path: '/admin/channels', element: <AdminPlaceholder title="Channels" /> },
-          { path: '/admin/marketing-ads', element: <AdminPlaceholder title="Marketing Ads" /> },
-          { path: '/admin/settings', element: <AdminPlaceholder title="Settings" /> },
+          { path: '/admin/departments', element: <CatalogPage key="departments" catalog="departments" /> },
+          { path: '/admin/task-types', element: <CatalogPage key="task_types" catalog="task_types" /> },
+          { path: '/admin/channels', element: <CatalogPage key="channels" catalog="channels" /> },
+          { path: '/admin/marketing-ads', element: <CatalogPage key="marketing_ads" catalog="marketing_ads" /> },
+          { path: '/admin/settings', element: <SettingsPage /> },
         ],
       },
     ],
@@ -57,17 +62,6 @@ export function AppRouter() {
 
 // ─── Placeholder pages for future phases ─────────────────────────────────────
 
-function AdminPlaceholder({ title }: { title: string }) {
-  return (
-    <div className="p-6">
-      <h1 className="text-xl font-bold">{title}</h1>
-      <p className="text-muted-foreground mt-2">
-        This administration page will be available in a future update.
-      </p>
-    </div>
-  )
-}
-
 function MarketingPlaceholder() {
   return (
     <div className="p-6">
@@ -75,17 +69,6 @@ function MarketingPlaceholder() {
       <p className="text-muted-foreground mt-2">
         Detailed marketing campaign tracking will be available soon.
         See the Dashboard for current daily targets.
-      </p>
-    </div>
-  )
-}
-
-function ProfilePlaceholder() {
-  return (
-    <div className="p-6">
-      <h1 className="text-xl font-bold">My Profile</h1>
-      <p className="text-muted-foreground mt-2">
-        Profile settings page coming soon.
       </p>
     </div>
   )

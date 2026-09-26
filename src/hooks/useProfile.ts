@@ -7,6 +7,8 @@ export function useProfile(userId: string | undefined) {
     queryKey: ['profile', userId],
     queryFn: () => (userId ? fetchProfile(userId) : null),
     enabled: !!userId,
+    retry: false,
+    retryOnMount: false,
     staleTime: 5 * 60 * 1000, // 5 minutes
   })
 }

@@ -45,6 +45,19 @@ export async function signIn(email: string, password: string) {
   return data
 }
 
+export async function signUp(fullName: string, email: string, password: string) {
+  const { data, error } = await supabase.auth.signUp({
+    email: email.trim(),
+    password,
+    options: {
+      data: { full_name: fullName.trim() },
+      emailRedirectTo: `${window.location.origin}/dashboard`,
+    },
+  })
+  if (error) throw error
+  return data
+}
+
 export async function signOut() {
   const { error } = await supabase.auth.signOut()
   if (error) throw error

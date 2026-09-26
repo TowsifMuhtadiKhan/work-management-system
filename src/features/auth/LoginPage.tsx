@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -48,7 +48,7 @@ export function LoginPage() {
     <Card className="border-white/10 bg-white/5 backdrop-blur text-white shadow-2xl">
       <CardHeader className="text-center pb-2">
         <CardTitle className="text-xl text-white">Sign In</CardTitle>
-        <CardDescription className="text-blue-200/60 text-sm">
+        <CardDescription className="text-zinc-300 text-sm">
           Enter your work email and password
         </CardDescription>
       </CardHeader>
@@ -60,7 +60,7 @@ export function LoginPage() {
             </p>
           )}
           <div className="space-y-1.5">
-            <Label htmlFor="email" className="text-blue-100/80 text-xs">
+            <Label htmlFor="email" className="text-zinc-200 text-xs">
               Email Address
             </Label>
             <Input
@@ -71,13 +71,13 @@ export function LoginPage() {
               placeholder="you@deshtv.com"
               autoComplete="email"
               autoFocus
-              className="bg-white/10 border-white/20 text-white placeholder:text-white/30 focus-visible:ring-blue-400"
+              className="bg-white/10 border-white/20 text-white placeholder:text-white/30 focus-visible:ring-amber-400"
               disabled={loading}
             />
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="password" className="text-blue-100/80 text-xs">
+            <Label htmlFor="password" className="text-zinc-200 text-xs">
               Password
             </Label>
             <div className="relative">
@@ -88,7 +88,7 @@ export function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 autoComplete="current-password"
-                className="bg-white/10 border-white/20 text-white placeholder:text-white/30 focus-visible:ring-blue-400 pr-10"
+                className="bg-white/10 border-white/20 text-white placeholder:text-white/30 focus-visible:ring-amber-400 pr-10"
                 disabled={loading}
               />
               <button
@@ -108,7 +108,7 @@ export function LoginPage() {
 
           <Button
             type="submit"
-            className="w-full bg-blue-500 hover:bg-blue-600 text-white"
+            className="w-full bg-primary hover:bg-primary/90 text-white"
             disabled={loading}
           >
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -116,10 +116,11 @@ export function LoginPage() {
           </Button>
         </form>
 
-        <p className="text-center text-xs text-blue-200/40 mt-6">
-          Access is managed by your administrator.
-          <br />
-          Contact admin if you need an account.
+        <p className="text-center text-xs text-zinc-400 mt-6">
+          Don't have an account?{' '}
+          <Link to="/signup" className="text-amber-300 underline underline-offset-4 hover:text-amber-200">
+            Create Account
+          </Link>
         </p>
       </CardContent>
     </Card>

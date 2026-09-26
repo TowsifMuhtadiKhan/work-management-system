@@ -16,6 +16,7 @@ import {
 import { cn } from '@/utils/cn'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
+import { BrandLogo } from '@/components/common/BrandLogo'
 import type { Profile } from '@/types/entities'
 
 interface NavItem {
@@ -57,19 +58,8 @@ export function Sidebar({ profile }: SidebarProps) {
     <aside className="flex flex-col w-60 min-h-screen bg-sidebar text-sidebar-foreground border-r border-sidebar-border">
       {/* Logo / Brand */}
       <div className="flex flex-col items-center justify-center px-6 py-5 border-b border-sidebar-border">
-        <div className="flex items-center gap-2.5">
-          <div className="h-8 w-8 rounded-lg bg-red-500 flex items-center justify-center">
-            <span className="text-white font-bold text-sm">D</span>
-          </div>
-          <div>
-            <p className="text-sm font-bold tracking-tight text-sidebar-foreground leading-tight">
-              DESH TV
-            </p>
-            <p className="text-[10px] text-sidebar-foreground/60 leading-tight">
-              Digital CMS
-            </p>
-          </div>
-        </div>
+        <BrandLogo className="w-full" />
+        <p className="mt-3 text-[10px] uppercase tracking-widest text-sidebar-foreground/60">Digital Content Management</p>
       </div>
 
       <ScrollArea className="flex-1 py-4">
