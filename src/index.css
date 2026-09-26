@@ -118,16 +118,19 @@
 /* Color cues keep the editorial sheet scannable without replacing text labels. */
 .task-sheet { background: hsl(var(--muted) / .3); }
 .sheet-section { --section-color: #475569; --section-tint: #f1f5f9; border-color: color-mix(in srgb, var(--section-color) 28%, transparent); }
-.sheet-section[data-tone="amber"] { --section-color: #92400e; --section-tint: #fef3c7; }
-.sheet-section[data-tone="cyan"] { --section-color: #155e75; --section-tint: #cffafe; }
-.sheet-section[data-tone="violet"] { --section-color: #5b21b6; --section-tint: #ede9fe; }
-.sheet-section[data-tone="rose"] { --section-color: #9f1239; --section-tint: #ffe4e6; }
 .sheet-section-heading { background: var(--section-tint); color: var(--section-color); border-left: 5px solid var(--section-color); }
 .sheet-add-row { background: var(--section-color); color: white; border: 0; }
 .sheet-add-row:hover { background: var(--section-color); filter: brightness(1.15); }
 .sheet-columns { background: color-mix(in srgb, var(--section-tint) 55%, white); color: var(--section-color); }
+.sheet-section { --sheet-grid: color-mix(in srgb, var(--section-color) 20%, hsl(var(--border))); border-color: var(--sheet-grid); }
+.sheet-columns > tr > th { border-bottom: 2px solid var(--sheet-grid); }
+.sheet-columns > tr > th:not(:last-child),
+.sheet-row > td:not(:last-child) { border-right: 1px solid var(--sheet-grid); }
+.sheet-row > td { border-bottom: 1px solid var(--sheet-grid); }
+.sheet-row:last-child > td { border-bottom: 0; }
+.dark .sheet-section { --sheet-grid: color-mix(in srgb, var(--section-tint) 18%, hsl(var(--border))); }
 .sheet-row { background: hsl(var(--background)); }
-.sheet-row:nth-child(even) { background: hsl(var(--muted) / .35); }
+.sheet-row:nth-child(even) { background: hsl(var(--muted)); }
 .sheet-row:hover { background: color-mix(in srgb, var(--section-tint) 30%, hsl(var(--background))); }
 .sheet-row[data-dirty="true"] { background: #fffbeb; }
 .sheet-row > td:first-child { border-left: 3px solid #94a3b8; }
@@ -145,6 +148,7 @@
 .sheet-select[data-value="cancelled"], .sheet-select[data-value="urgent"] { background: #ffe4e6; color: #9f1239; border-color: #fda4af; }
 .sheet-select:focus-visible { outline: 2px solid var(--section-color); outline-offset: 2px; }
 .sheet-actions { position: sticky; right: 0; z-index: 2; background: hsl(var(--background)); border-left: 1px solid hsl(var(--border)); box-shadow: -5px 0 10px #0f172a0a; }
+.sheet-row > .sheet-actions { background: inherit; }
 .dark .sheet-section-heading, .dark .sheet-columns { background: color-mix(in srgb, var(--section-color) 25%, #18181b); color: var(--section-tint); }
 .dark .sheet-row[data-dirty="true"] { background: #302617; }
 .dark .sheet-select { background: #27272a; color: #e4e4e7; border-color: #52525b; }
@@ -160,6 +164,8 @@
 .caption-document blockquote { border-left: 3px solid #a78bfa; padding-left: 1rem; }
 .caption-document a { color: #6d28d9; text-decoration: underline; cursor: pointer; }
 .dark .caption-document a { color: #c4b5fd; }
-/* The selected cell editor replaces its hint while a cell is active. */
-.task-sheet .cell-editor-hint { margin-top: .5rem; }
-.task-sheet div:has(> .cell-editor-hint) > div:not(:empty) + .cell-editor-hint { display: none; }
+/* Floating editor appears only during editing, without shifting the sheet. */
+.cell-editor-panel:has(> div:empty) { display: none; }
+/* Keep the action column stable when editing reveals save/cancel controls. */
+.sheet-actions { width: 124px; min-width: 124px; max-width: 124px; }
+.sheet-row > .sheet-actions { height: 72px; }

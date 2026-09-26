@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase/client'
+import { taskCompletionError } from '@/utils/taskCompletion'
 import type { Task, TaskFilters } from '@/types/entities'
 import type { DbTaskInsert, DbTaskUpdate } from '@/types/database'
 
@@ -71,6 +72,8 @@ export async function fetchTaskById(id: string): Promise<Task | null> {
 // ─── Create a new task ────────────────────────────────────────────────────────
 
 export async function createTask(payload: DbTaskInsert): Promise<Task> {
+  const completionError = payload.status === 'done' ? taskCompletionError(payload) : null
+  if (completionError) throw new Error(completionError)
   const { data, error } = await supabase
     .from('tasks')
     .insert(payload)
@@ -84,6 +87,12 @@ export async function createTask(payload: DbTaskInsert): Promise<Task> {
 // ─── Update an existing task ──────────────────────────────────────────────────
 
 export async function updateTask(id: string, payload: DbTaskUpdate): Promise<Task> {
+  if (payload.status === 'done') {
+    const current = await fetchTaskById(id)
+    if (!current) throw new Error('Task not found')
+    const completionError = taskCompletionError({ ...current, ...payload })
+    if (completionError) throw new Error(completionError)
+  }
   const { data, error } = await supabase
     .from('tasks')
     .update({ ...payload, updated_at: new Date().toISOString() })
@@ -96,6 +105,10 @@ export async function updateTask(id: string, payload: DbTaskUpdate): Promise<Tas
 }
 
 export async function markTaskDone(id: string, assignedUserId: string): Promise<void> {
+  const current = await fetchTaskById(id)
+  if (!current) throw new Error('Task not found')
+  const completionError = taskCompletionError(current)
+  if (completionError) throw new Error(completionError)
   const { error } = await supabase.from('tasks')
     .update({ status: 'done', updated_by: assignedUserId })
     .eq('id', id).eq('assigned_to', assignedUserId).neq('status', 'done')
@@ -110,6 +123,10 @@ export async function updateTaskStatus(
   status: string,
   updatedBy: string
 ): Promise<void> {
+  if (status === 'done') {
+    await updateTask(id, { status, updated_by: updatedBy })
+    return
+  }
   const { error } = await supabase
     .from('tasks')
     .update({ status, updated_by: updatedBy, updated_at: new Date().toISOString() })

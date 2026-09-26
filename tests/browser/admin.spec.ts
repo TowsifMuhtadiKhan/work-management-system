@@ -38,6 +38,7 @@ async function mockApp(page: Page, { role = 'administrator', ready = true } = {}
     }
     if (request.method() === 'GET') {
       const rows = (tables[path] ?? []).filter(row => !url.searchParams.has('id') || url.searchParams.get('id')?.startsWith('in.') || `eq.${row.id}` === url.searchParams.get('id'))
+      if (request.headers().accept?.includes('vnd.pgrst.object')) return respond(rows[0] ?? null)
       return respond(path === 'tasks' ? rows.filter(row => (!url.searchParams.has('assigned_to') || url.searchParams.get('assigned_to') === 'eq.' + row.assigned_to) && (!url.searchParams.has('work_date') || url.searchParams.get('work_date') === 'eq.' + row.work_date)) : rows)
     }
     const body = request.postDataJSON()
@@ -209,16 +210,16 @@ test('only the assigned user gets Mark as done', async ({ page }) => {
   const { tables, writes } = await mockApp(page)
   const date = new Date().toLocaleDateString('en-CA')
   tables.tasks.push(
-    { id: 'own', file_name: 'Own task', assigned_to: adminId, work_date: date, status: 'in_progress', time_slot: '07:00' },
+    { id: 'own', remarks: 'Published', youtube_link: 'https://youtube.com/watch?v=demo', facebook_link: 'https://facebook.com/demo', file_name: 'Own task', assigned_to: adminId, work_date: date, status: 'in_progress', time_slot: '07:00' },
     { id: 'other', file_name: 'Other task', assigned_to: employeeId, work_date: date, status: 'in_progress', time_slot: '08:00' })
   await page.goto('/tasks')
   const own = page.getByRole('region', { name: '7:00 AM', exact: true })
   const other = page.getByRole('region', { name: '8:00 AM', exact: true })
   await expect(own.getByRole('button', { name: 'Mark as done' })).toBeVisible()
   await expect(other.getByRole('button', { name: 'Mark as done' })).toHaveCount(0)
-  await expect(other.getByRole('combobox', { name: 'status' }).locator('option[value="done"]')).toBeDisabled()
+  await expect(other.getByRole('combobox', { name: 'status' }).first().locator('option[value="done"]')).toBeDisabled()
   await own.getByRole('button', { name: 'Mark as done' }).click()
-  await expect(own.getByRole('combobox', { name: 'status' })).toHaveValue('done')
+  await expect(own.getByRole('combobox', { name: 'status' }).first()).toHaveValue('done')
   expect(writes.find(w => w.table === 'tasks')?.body.updated_by).toBe(adminId)
 })
 
@@ -237,4 +238,64 @@ test('selected file name expands in the full cell editor and stays synchronized'
   await expect(cell).toHaveValue(name + '_updated')
   await section.getByRole('button', { name: 'Cancel', exact: true }).click()
   await expect(expanded).toHaveCount(0)
+})
+
+test('typing in a sheet text cell keeps the sheet position stable', async ({ page }) => {
+  await mockApp(page)
+  await page.goto('/tasks')
+  const editor = page.locator('.cell-editor-panel')
+  await expect(editor).toBeHidden()
+  const cell = page.getByRole('textbox', { name: 'file name', exact: true }).first()
+  await cell.scrollIntoViewIfNeeded()
+  const before = await cell.boundingBox()
+  await cell.click()
+  await expect(editor).toBeVisible()
+  await cell.pressSequentially('Description being typed without the sheet jumping')
+  const after = await cell.boundingBox()
+  expect(Math.abs(after!.y - before!.y)).toBeLessThan(2)
+  expect(Math.abs(after!.x - before!.x)).toBeLessThan(2)
+  await expect(cell).toHaveValue('Description being typed without the sheet jumping')
+  await expect(cell).toBeFocused()
+  await page.getByRole('columnheader', { name: 'File name', exact: true }).first().click()
+  await expect(editor).toBeHidden()
+})
+
+for (const missing of ['remarks', 'youtube_link', 'facebook_link']) {
+  test('completion requires ' + missing, async ({ page }) => {
+    const { tables } = await mockApp(page)
+    tables.tasks.push({ id: 'incomplete', file_name: 'Incomplete task', assigned_to: adminId,
+      work_date: new Date().toLocaleDateString('en-CA'), status: 'pending', time_slot: '07:00',
+      remarks: 'Published', youtube_link: 'https://youtube.com/watch?v=demo', facebook_link: 'https://facebook.com/demo', [missing]: '  ' })
+    await page.goto('/tasks')
+    const row = page.locator('tr').filter({ has: page.getByRole('textbox', { name: 'file name', exact: true }).and(page.locator('[value="Incomplete task"]')) })
+    await expect(row.getByRole('button', { name: 'Mark as done' })).toBeDisabled()
+    await expect(row.getByRole('combobox', { name: 'status', exact: true }).locator('option[value="done"]')).toBeDisabled()
+    for (const platform of ['YouTube link', 'Facebook link', 'Drive link']) {
+      await expect(page.getByRole('img', { name: platform, exact: true }).first()).toBeVisible()
+    }
+  })
+}
+
+test('editing the last draft adds one blank row without losing focus or other drafts', async ({ page }) => {
+  await mockApp(page)
+  await page.goto('/tasks')
+  const section = page.getByRole('region', { name: '8:00 AM', exact: true })
+  const names = section.getByRole('textbox', { name: 'file name', exact: true })
+  await expect(names).toHaveCount(1)
+  await names.first().click()
+  await names.first().pressSequentially('First draft')
+  await expect(names).toHaveCount(2)
+  await expect(names.first()).toHaveValue('First draft')
+  await expect(names.first()).toBeFocused()
+  await expect(names.nth(1)).toHaveValue('')
+  await names.nth(1).fill('Second draft')
+  await expect(names).toHaveCount(3)
+  await names.first().fill('First draft updated')
+  await expect(names).toHaveCount(3)
+  await page.getByRole('columnheader', { name: 'File name', exact: true }).first().click()
+  await section.getByRole('button', { name: 'Cancel', exact: true }).first().click()
+  await expect(names).toHaveCount(2)
+  await expect(names.first()).toHaveValue('Second draft')
+  await expect(names.nth(1)).toHaveValue('')
+  await expect(section.getByRole('button', { name: 'Add row', exact: true })).toHaveCount(0)
 })

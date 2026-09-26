@@ -1,3 +1,4 @@
+import { taskCompletionError } from '@/utils/taskCompletion'
 import { CaptionEditor } from './CaptionEditor'
 import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -116,6 +117,8 @@ export function TaskFormDialog({
       return
     }
     if (!currentProfile) return
+    const completionError = taskCompletionError(form)
+    if (form.status === 'done' && completionError) { alert(completionError); return }
 
     setSubmitting(true)
     try {
@@ -245,7 +248,7 @@ export function TaskFormDialog({
                   <SelectItem value="pending">Pending</SelectItem>
                   <SelectItem value="assigned">Assigned</SelectItem>
                   <SelectItem value="in_progress">In Progress</SelectItem>
-                    <SelectItem value="done" disabled={!currentProfile?.is_active || form.assigned_to !== currentProfile.id || (!!task && task.assigned_to !== currentProfile.id)}>Done</SelectItem>
+                    <SelectItem value="done" disabled={!!taskCompletionError(form) || !currentProfile?.is_active || form.assigned_to !== currentProfile.id || (!!task && task.assigned_to !== currentProfile.id)}>Done</SelectItem>
                   <SelectItem value="hold">Hold</SelectItem>
                   <SelectItem value="cancelled">Cancelled</SelectItem>
                 </SelectContent>
