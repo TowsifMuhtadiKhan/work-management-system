@@ -1,3 +1,4 @@
+import { captionText } from '@/utils/caption'
 import { useState } from 'react'
 import { ExternalLink, Edit, History, Trash2, MoreHorizontal } from 'lucide-react'
 import { toast } from 'sonner'
@@ -170,12 +171,12 @@ export function TaskTable({ tasks, currentProfile, onRefetch }: TaskTableProps) 
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <p className="line-clamp-2 cursor-help">
-                            {task.remarks || task.caption}
+                            {task.remarks || captionText(task.caption)}
                           </p>
                         </TooltipTrigger>
                         <TooltipContent className="max-w-xs">
                           {task.remarks && <p><strong>Remarks:</strong> {task.remarks}</p>}
-                          {task.caption && <p><strong>Caption:</strong> {task.caption}</p>}
+                          {task.caption && <p><strong>Caption:</strong> {captionText(task.caption)}</p>}
                         </TooltipContent>
                       </Tooltip>
                     ) : (

@@ -1,3 +1,4 @@
+import { CaptionEditor } from './CaptionEditor'
 import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
@@ -244,7 +245,7 @@ export function TaskFormDialog({
                   <SelectItem value="pending">Pending</SelectItem>
                   <SelectItem value="assigned">Assigned</SelectItem>
                   <SelectItem value="in_progress">In Progress</SelectItem>
-                  <SelectItem value="done">Done</SelectItem>
+                    <SelectItem value="done" disabled={!currentProfile?.is_active || form.assigned_to !== currentProfile.id || (!!task && task.assigned_to !== currentProfile.id)}>Done</SelectItem>
                   <SelectItem value="hold">Hold</SelectItem>
                   <SelectItem value="cancelled">Cancelled</SelectItem>
                 </SelectContent>
@@ -319,13 +320,7 @@ export function TaskFormDialog({
           {/* Row 6: Caption */}
           <div className="space-y-1.5">
             <Label htmlFor="caption">Caption</Label>
-            <Textarea
-              id="caption"
-              value={form.caption}
-              onChange={(e) => set('caption')(e.target.value)}
-              placeholder="Social media caption text…"
-              rows={2}
-            />
+            <CaptionEditor value={form.caption} onChange={set('caption')} disabled={submitting} />
           </div>
 
           {/* Row 7: Links */}

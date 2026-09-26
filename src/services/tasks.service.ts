@@ -8,7 +8,7 @@ const TASK_SELECT = `
   channel:channels(*),
   marketing_ad:marketing_ads(*),
   assigned_profile:profiles!tasks_assigned_to_fkey(
-    id, full_name, email, employee_code, designation, avatar_url
+    id, full_name, email, employee_code, designation, avatar_url, manager_id, application_role
   ),
   created_by_profile:profiles!tasks_created_by_fkey(id, full_name),
   updated_by_profile:profiles!tasks_updated_by_fkey(id, full_name)
@@ -93,6 +93,14 @@ export async function updateTask(id: string, payload: DbTaskUpdate): Promise<Tas
 
   if (error) throw error
   return data as Task
+}
+
+export async function markTaskDone(id: string, assignedUserId: string): Promise<void> {
+  const { error } = await supabase.from('tasks')
+    .update({ status: 'done', updated_by: assignedUserId })
+    .eq('id', id).eq('assigned_to', assignedUserId).neq('status', 'done')
+    .select('id').single()
+  if (error) throw error
 }
 
 // ─── Update task status only (quick inline toggle) ───────────────────────────

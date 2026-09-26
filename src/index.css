@@ -115,3 +115,51 @@
     -webkit-line-clamp: 2;
   }
 }
+/* Color cues keep the editorial sheet scannable without replacing text labels. */
+.task-sheet { background: hsl(var(--muted) / .3); }
+.sheet-section { --section-color: #475569; --section-tint: #f1f5f9; border-color: color-mix(in srgb, var(--section-color) 28%, transparent); }
+.sheet-section[data-tone="amber"] { --section-color: #92400e; --section-tint: #fef3c7; }
+.sheet-section[data-tone="cyan"] { --section-color: #155e75; --section-tint: #cffafe; }
+.sheet-section[data-tone="violet"] { --section-color: #5b21b6; --section-tint: #ede9fe; }
+.sheet-section[data-tone="rose"] { --section-color: #9f1239; --section-tint: #ffe4e6; }
+.sheet-section-heading { background: var(--section-tint); color: var(--section-color); border-left: 5px solid var(--section-color); }
+.sheet-add-row { background: var(--section-color); color: white; border: 0; }
+.sheet-add-row:hover { background: var(--section-color); filter: brightness(1.15); }
+.sheet-columns { background: color-mix(in srgb, var(--section-tint) 55%, white); color: var(--section-color); }
+.sheet-row { background: hsl(var(--background)); }
+.sheet-row:nth-child(even) { background: hsl(var(--muted) / .35); }
+.sheet-row:hover { background: color-mix(in srgb, var(--section-tint) 30%, hsl(var(--background))); }
+.sheet-row[data-dirty="true"] { background: #fffbeb; }
+.sheet-row > td:first-child { border-left: 3px solid #94a3b8; }
+.sheet-row[data-status="done"] > td:first-child { border-left-color: #059669; }
+.sheet-row[data-status="in_progress"] > td:first-child { border-left-color: #d97706; }
+.sheet-row[data-status="cancelled"] > td:first-child { border-left-color: #e11d48; }
+.sheet-select { background: #f8fafc; color: #334155; border-color: #cbd5e1; }
+.sheet-select[data-field="task_type_id"] { background: #f3e8ff; color: #6b21a8; border-color: #d8b4fe; }
+.sheet-select[data-field="assigned_to"], .sheet-select[data-field="channel_id"] { background: #eff6ff; color: #1e40af; border-color: #bfdbfe; }
+.sheet-select[data-field="marketing_ad_id"] { background: #fdf2f8; color: #9d174d; border-color: #fbcfe8; }
+.sheet-select[data-value="done"], .sheet-select[data-value="low"] { background: #d1fae5; color: #065f46; border-color: #6ee7b7; }
+.sheet-select[data-value="pending"], .sheet-select[data-value="in_progress"], .sheet-select[data-value="high"] { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
+.sheet-select[data-value="assigned"] { background: #dbeafe; color: #1e40af; border-color: #93c5fd; }
+.sheet-select[data-value="hold"] { background: #ede9fe; color: #5b21b6; border-color: #c4b5fd; }
+.sheet-select[data-value="cancelled"], .sheet-select[data-value="urgent"] { background: #ffe4e6; color: #9f1239; border-color: #fda4af; }
+.sheet-select:focus-visible { outline: 2px solid var(--section-color); outline-offset: 2px; }
+.sheet-actions { position: sticky; right: 0; z-index: 2; background: hsl(var(--background)); border-left: 1px solid hsl(var(--border)); box-shadow: -5px 0 10px #0f172a0a; }
+.dark .sheet-section-heading, .dark .sheet-columns { background: color-mix(in srgb, var(--section-color) 25%, #18181b); color: var(--section-tint); }
+.dark .sheet-row[data-dirty="true"] { background: #302617; }
+.dark .sheet-select { background: #27272a; color: #e4e4e7; border-color: #52525b; }
+.dark .sheet-select[data-field="task_type_id"], .dark .sheet-select[data-value="hold"] { background: #35204f; color: #e9d5ff; border-color: #7e22ce; }
+.dark .sheet-select[data-field="assigned_to"], .dark .sheet-select[data-field="channel_id"], .dark .sheet-select[data-value="assigned"] { background: #172c50; color: #bfdbfe; border-color: #2563eb; }
+.dark .sheet-select[data-field="marketing_ad_id"], .dark .sheet-select[data-value="cancelled"], .dark .sheet-select[data-value="urgent"] { background: #4c1d36; color: #fecdd3; border-color: #be185d; }
+.dark .sheet-select[data-value="done"], .dark .sheet-select[data-value="low"] { background: #123e32; color: #a7f3d0; border-color: #059669; }
+.dark .sheet-select[data-value="pending"], .dark .sheet-select[data-value="in_progress"], .dark .sheet-select[data-value="high"] { background: #493116; color: #fde68a; border-color: #b45309; }
+.caption-document { font-size: 1rem; line-height: 1.75; overflow-wrap: anywhere; white-space: pre-wrap; }
+.caption-document p { margin: .5rem 0; }
+.caption-document ul { list-style: disc; padding-left: 1.5rem; }
+.caption-document ol { list-style: decimal; padding-left: 1.5rem; }
+.caption-document blockquote { border-left: 3px solid #a78bfa; padding-left: 1rem; }
+.caption-document a { color: #6d28d9; text-decoration: underline; cursor: pointer; }
+.dark .caption-document a { color: #c4b5fd; }
+/* The selected cell editor replaces its hint while a cell is active. */
+.task-sheet .cell-editor-hint { margin-top: .5rem; }
+.task-sheet div:has(> .cell-editor-hint) > div:not(:empty) + .cell-editor-hint { display: none; }

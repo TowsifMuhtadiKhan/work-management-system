@@ -16,7 +16,7 @@ async function mockApp(page: Page, { role = 'administrator', ready = true } = {}
   })
   const profile = { id: adminId, email: user.email, full_name: 'Test Administrator', application_role: role, is_active: true, manager_id: null, department_id: null, employee_code: null, designation: null }
   const employee = { ...profile, id: employeeId, email: 'employee@example.test', full_name: 'Test Employee', application_role: 'employee' }
-  const tables: Record<string, Record<string, unknown>[]> = { profiles: [profile, employee], departments: [], task_types: [], channels: [], marketing_ads: [] }
+  const tables: Record<string, Record<string, unknown>[]> = { profiles: [profile, employee], departments: [], task_types: [], channels: [], marketing_ads: [], tasks: [] }
   const writes: { table: string; body: Record<string, unknown> }[] = []
   await page.route(`https://${hostname}/**`, async route => {
     const request = route.request()
@@ -38,7 +38,7 @@ async function mockApp(page: Page, { role = 'administrator', ready = true } = {}
     }
     if (request.method() === 'GET') {
       const rows = (tables[path] ?? []).filter(row => !url.searchParams.has('id') || url.searchParams.get('id')?.startsWith('in.') || `eq.${row.id}` === url.searchParams.get('id'))
-      return respond(rows)
+      return respond(path === 'tasks' ? rows.filter(row => (!url.searchParams.has('assigned_to') || url.searchParams.get('assigned_to') === 'eq.' + row.assigned_to) && (!url.searchParams.has('work_date') || url.searchParams.get('work_date') === 'eq.' + row.work_date)) : rows)
     }
     const body = request.postDataJSON()
     writes.push({ table: path, body })
@@ -130,4 +130,111 @@ test('marketing date validation prevents invalid campaign saves', async ({ page 
   await page.getByRole('button', { name: 'Save changes' }).click()
   await expect(page.getByRole('alert')).toContainText('end date')
   expect(mock.writes).toHaveLength(0)
+})
+
+
+test('hourly sheet creates and edits rows; My Tasks locks the user filter', async ({ page }) => {
+  const { tables, writes } = await mockApp(page)
+  tables.task_types.push({ id: 'type-1', name: 'Bulletin', code: 'BULLETIN', is_active: true, sort_order: 1 })
+  await page.goto('/tasks')
+  const section = page.getByRole('region', { name: '7:00 AM', exact: true })
+  await section.getByRole('button', { name: 'Add row' }).click()
+  await section.getByRole('textbox', { name: 'file name', exact: true }).fill('Morning bulletin')
+  await section.getByRole('combobox', { name: 'task type id' }).selectOption('type-1')
+  await section.getByRole('combobox', { name: 'assigned to' }).selectOption(adminId)
+  await section.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(section.getByRole('button', { name: 'History' })).toBeVisible()
+  expect(writes.find(w => w.table === 'tasks')?.body.time_slot).toBe('07:00')
+  await section.getByRole('textbox', { name: 'file name', exact: true }).fill('Updated bulletin')
+  await section.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(section.getByRole('button', { name: 'Save', exact: true })).toBeDisabled()
+  const ownTask = tables.tasks[0]
+  tables.tasks.push({ ...ownTask, id: 'other-task', assigned_to: employeeId, file_name: 'Other employee task' })
+  await page.goto('/my-tasks')
+  await expect(page.getByRole('heading', { name: 'My Tasks', exact: true })).toBeVisible()
+  await expect(page.locator('input').filter({ visible: true }).and(page.locator('input[value="Other employee task"]'))).toHaveCount(0)
+  await expect(page.getByRole('textbox', { name: 'file name', exact: true })).toHaveValue('Updated bulletin')
+  await expect(page.getByRole('combobox', { name: 'assigned to' })).toBeDisabled()
+  await page.getByRole('button', { name: 'Filters', exact: true }).click()
+  await expect(page.getByText('Employee', { exact: true })).toHaveCount(0)
+})
+
+test('failed row save retains entered data and shows setup guidance', async ({ page }) => {
+  const { tables } = await mockApp(page)
+  tables.task_types.push({ id: 'type-1', name: 'Bulletin', is_active: true })
+  await page.route('**/rest/v1/tasks*', route => route.request().method() === 'POST'
+    ? route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ message: 'time_slot column missing' }) })
+    : route.fallback())
+  await page.goto('/tasks')
+  const section = page.getByRole('region', { name: '12:00 AM', exact: true })
+  await section.getByRole('button', { name: 'Add row' }).click()
+  await section.getByRole('textbox', { name: 'file name', exact: true }).fill('Midnight bulletin')
+  await section.getByRole('combobox', { name: 'task type id' }).selectOption('type-1')
+  await section.getByRole('combobox', { name: 'assigned to' }).selectOption(adminId)
+  await section.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(section.getByRole('alert')).toContainText('Apply the task_work_time SQL update')
+  await expect(section.getByRole('textbox', { name: 'file name', exact: true })).toHaveValue('Midnight bulletin')
+})
+
+
+test('caption rich text survives saving and reopening; cancel discards dialog edits', async ({ page }) => {
+  const { tables, writes } = await mockApp(page)
+  tables.task_types.push({ id: 'type-1', name: 'Bulletin', is_active: true })
+  await page.goto('/tasks')
+  const section = page.getByRole('region', { name: '7:00 AM', exact: true })
+  await section.getByRole('button', { name: 'Add row' }).click()
+  await section.getByRole('textbox', { name: 'file name', exact: true }).fill('Caption example')
+  await section.getByRole('combobox', { name: 'task type id' }).selectOption('type-1')
+  await section.getByRole('combobox', { name: 'assigned to' }).selectOption(adminId)
+  await section.getByRole('button', { name: 'Edit caption' }).click()
+  const dialog = page.getByRole('dialog')
+  await dialog.getByRole('textbox', { name: 'Caption text' }).fill('Breaking news caption')
+  await dialog.getByRole('textbox', { name: 'Caption text' }).press('ControlOrMeta+a')
+  await dialog.getByRole('button', { name: 'Bold', exact: true }).click()
+  await expect(dialog.locator('.tiptap strong')).toHaveText('Breaking news caption')
+  await dialog.getByRole('button', { name: 'Apply caption' }).click()
+  await section.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(section.getByRole('button', { name: 'History' })).toBeVisible()
+  expect(String(writes.find(w => w.table === 'tasks')?.body.caption)).toContain('<strong>Breaking news caption</strong>')
+  await section.getByRole('button', { name: 'Edit caption' }).click()
+  await expect(dialog.locator('.tiptap strong')).toHaveText('Breaking news caption')
+  await dialog.getByRole('textbox', { name: 'Caption text' }).fill('Discard this')
+  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await expect(section.getByRole('button', { name: 'Edit caption' })).toContainText('Breaking news caption')
+  await expect(section.getByRole('button', { name: 'Save', exact: true })).toBeDisabled()
+})
+
+
+test('only the assigned user gets Mark as done', async ({ page }) => {
+  const { tables, writes } = await mockApp(page)
+  const date = new Date().toLocaleDateString('en-CA')
+  tables.tasks.push(
+    { id: 'own', file_name: 'Own task', assigned_to: adminId, work_date: date, status: 'in_progress', time_slot: '07:00' },
+    { id: 'other', file_name: 'Other task', assigned_to: employeeId, work_date: date, status: 'in_progress', time_slot: '08:00' })
+  await page.goto('/tasks')
+  const own = page.getByRole('region', { name: '7:00 AM', exact: true })
+  const other = page.getByRole('region', { name: '8:00 AM', exact: true })
+  await expect(own.getByRole('button', { name: 'Mark as done' })).toBeVisible()
+  await expect(other.getByRole('button', { name: 'Mark as done' })).toHaveCount(0)
+  await expect(other.getByRole('combobox', { name: 'status' }).locator('option[value="done"]')).toBeDisabled()
+  await own.getByRole('button', { name: 'Mark as done' }).click()
+  await expect(own.getByRole('combobox', { name: 'status' })).toHaveValue('done')
+  expect(writes.find(w => w.table === 'tasks')?.body.updated_by).toBe(adminId)
+})
+
+
+test('selected file name expands in the full cell editor and stays synchronized', async ({ page }) => {
+  await mockApp(page)
+  await page.goto('/tasks')
+  const section = page.getByRole('region', { name: '7:00 AM', exact: true })
+  await section.getByRole('button', { name: 'Add row' }).click()
+  const cell = section.getByRole('textbox', { name: 'file name', exact: true })
+  const name = 'DEMO_20260926_Community_health_tips_full_editorial_bulletin_final_version'
+  await cell.fill(name)
+  const expanded = page.getByRole('textbox', { name: 'Full file name', exact: true })
+  await expect(expanded).toHaveValue(name)
+  await expanded.fill(name + '_updated')
+  await expect(cell).toHaveValue(name + '_updated')
+  await section.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await expect(expanded).toHaveCount(0)
 })

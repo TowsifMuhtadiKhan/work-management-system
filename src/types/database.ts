@@ -63,6 +63,7 @@ export interface DbMarketingAd {
 }
 
 export interface DbTask {
+  time_slot?: string | null
   id: string
   work_date: string
   file_name: string

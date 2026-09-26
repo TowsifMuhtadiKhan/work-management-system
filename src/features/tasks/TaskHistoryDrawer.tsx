@@ -1,3 +1,4 @@
+import { captionText } from '@/utils/caption'
 import { useQuery } from '@tanstack/react-query'
 import { X, Clock, UserCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -16,6 +17,7 @@ interface TaskHistoryDrawerProps {
 }
 
 const FIELD_LABELS: Record<string, string> = {
+  time_slot: 'Time Section',
   created: 'Task Created',
   file_name: 'File Name',
   task_type_id: 'Task Type',
@@ -127,7 +129,7 @@ export function TaskHistoryDrawer({ task, open, onClose }: TaskHistoryDrawerProp
                             <div className="flex items-center gap-2 mt-1">
                               {entry.old_value && (
                                 <span className="text-[10px] bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 px-1.5 py-0.5 rounded line-through">
-                                  {entry.old_value}
+                                  {entry.field_name === 'caption' ? captionText(entry.old_value) : entry.old_value}
                                 </span>
                               )}
                               {entry.old_value && entry.new_value && (
@@ -135,7 +137,7 @@ export function TaskHistoryDrawer({ task, open, onClose }: TaskHistoryDrawerProp
                               )}
                               {entry.new_value && (
                                 <span className="text-[10px] bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 px-1.5 py-0.5 rounded">
-                                  {entry.new_value}
+                                  {entry.field_name === 'caption' ? captionText(entry.new_value) : entry.new_value}
                                 </span>
                               )}
                             </div>

@@ -31,7 +31,7 @@ export interface Task extends DbTask {
   marketing_ad?: MarketingAd | null
   assigned_profile?: Pick<
     DbProfile,
-    'id' | 'full_name' | 'email' | 'employee_code' | 'designation' | 'avatar_url'
+    'id' | 'full_name' | 'email' | 'employee_code' | 'designation' | 'avatar_url' | 'manager_id' | 'application_role'
   > | null
   created_by_profile?: Pick<DbProfile, 'id' | 'full_name'> | null
   updated_by_profile?: Pick<DbProfile, 'id' | 'full_name'> | null

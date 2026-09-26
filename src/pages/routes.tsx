@@ -12,6 +12,7 @@ import { EmployeesPage } from '@/features/admin/employees/EmployeesPage'
 import { CatalogPage } from '@/features/admin/CatalogPage'
 import { SettingsPage } from '@/features/admin/SettingsPage'
 import { ProfilePage } from '@/features/auth/ProfilePage'
+import { MarketingPage } from '@/features/marketing/MarketingPage'
 
 // Lazy admin pages that are less frequently accessed
 const router = createBrowserRouter([
@@ -33,7 +34,7 @@ const router = createBrowserRouter([
       { path: '/tasks', element: <DailyTasksPage /> },
       { path: '/my-tasks', element: <MyTasksPage /> },
       { path: '/reports', element: <ReportsPage /> },
-      { path: '/marketing', element: <MarketingPlaceholder /> },
+      { path: '/marketing', element: <MarketingPage /> },
       { path: '/profile', element: <ProfilePage /> },
 
       // Admin routes — wrapped in AdminLayout guard
@@ -62,14 +63,3 @@ export function AppRouter() {
 
 // ─── Placeholder pages for future phases ─────────────────────────────────────
 
-function MarketingPlaceholder() {
-  return (
-    <div className="p-6">
-      <h1 className="text-xl font-bold">Marketing Tracking</h1>
-      <p className="text-muted-foreground mt-2">
-        Detailed marketing campaign tracking will be available soon.
-        See the Dashboard for current daily targets.
-      </p>
-    </div>
-  )
-}

@@ -13,12 +13,13 @@ import { fetchMarketingAds } from '@/services/marketingAds.service'
 import type { TaskFilters } from '@/types/entities'
 
 interface TaskFiltersPanelProps {
+  hideAssignee?: boolean
   filters: Omit<TaskFilters, 'workDate' | 'search'>
   onChange: (filters: Omit<TaskFilters, 'workDate' | 'search'>) => void
   onClose: () => void
 }
 
-export function TaskFiltersPanel({ filters, onChange, onClose }: TaskFiltersPanelProps) {
+export function TaskFiltersPanel({ filters, onChange, onClose, hideAssignee = false }: TaskFiltersPanelProps) {
   const { data: profiles = [] } = useQuery({ queryKey: ['all-profiles'], queryFn: fetchAllProfiles })
   const { data: taskTypes = [] } = useQuery({ queryKey: ['task-types'], queryFn: fetchTaskTypes })
   const { data: channels = [] } = useQuery({ queryKey: ['channels'], queryFn: fetchChannels })
@@ -26,7 +27,7 @@ export function TaskFiltersPanel({ filters, onChange, onClose }: TaskFiltersPane
   const { data: marketingAds = [] } = useQuery({ queryKey: ['marketing-ads'], queryFn: fetchMarketingAds })
 
   const set = (field: keyof typeof filters) => (value: string) =>
-    onChange({ ...filters, [field]: value || undefined })
+    onChange({ ...filters, [field]: value === '__all' ? undefined : value })
 
   const clearAll = () => onChange({})
   const activeCount = Object.values(filters).filter(Boolean).length
@@ -56,16 +57,16 @@ export function TaskFiltersPanel({ filters, onChange, onClose }: TaskFiltersPane
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {/* Employee */}
-        <div className="space-y-1">
+        {!hideAssignee && <div className="space-y-1">
           <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">
             Employee
           </Label>
-          <Select value={filters.assignedTo ?? ''} onValueChange={set('assignedTo')}>
+          <Select value={filters.assignedTo ?? '__all'} onValueChange={set('assignedTo')}>
             <SelectTrigger className="h-8 text-xs">
               <SelectValue placeholder="All employees" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All employees</SelectItem>
+              <SelectItem value="__all">All employees</SelectItem>
               {profiles.map((p) => (
                 <SelectItem key={p.id} value={p.id}>
                   {p.full_name}
@@ -73,19 +74,19 @@ export function TaskFiltersPanel({ filters, onChange, onClose }: TaskFiltersPane
               ))}
             </SelectContent>
           </Select>
-        </div>
+        </div>}
 
         {/* Status */}
         <div className="space-y-1">
           <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">
             Status
           </Label>
-          <Select value={filters.status ?? ''} onValueChange={set('status')}>
+          <Select value={filters.status ?? '__all'} onValueChange={set('status')}>
             <SelectTrigger className="h-8 text-xs">
               <SelectValue placeholder="All statuses" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All statuses</SelectItem>
+              <SelectItem value="__all">All statuses</SelectItem>
               <SelectItem value="pending">Pending</SelectItem>
               <SelectItem value="assigned">Assigned</SelectItem>
               <SelectItem value="in_progress">In Progress</SelectItem>
@@ -101,12 +102,12 @@ export function TaskFiltersPanel({ filters, onChange, onClose }: TaskFiltersPane
           <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">
             Type
           </Label>
-          <Select value={filters.taskTypeId ?? ''} onValueChange={set('taskTypeId')}>
+          <Select value={filters.taskTypeId ?? '__all'} onValueChange={set('taskTypeId')}>
             <SelectTrigger className="h-8 text-xs">
               <SelectValue placeholder="All types" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All types</SelectItem>
+              <SelectItem value="__all">All types</SelectItem>
               {taskTypes.map((tt) => (
                 <SelectItem key={tt.id} value={tt.id}>
                   {tt.code}
@@ -121,12 +122,12 @@ export function TaskFiltersPanel({ filters, onChange, onClose }: TaskFiltersPane
           <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">
             Channel
           </Label>
-          <Select value={filters.channelId ?? ''} onValueChange={set('channelId')}>
+          <Select value={filters.channelId ?? '__all'} onValueChange={set('channelId')}>
             <SelectTrigger className="h-8 text-xs">
               <SelectValue placeholder="All channels" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All channels</SelectItem>
+              <SelectItem value="__all">All channels</SelectItem>
               {channels.map((ch) => (
                 <SelectItem key={ch.id} value={ch.id}>
                   {ch.name}
@@ -141,12 +142,12 @@ export function TaskFiltersPanel({ filters, onChange, onClose }: TaskFiltersPane
           <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">
             Department
           </Label>
-          <Select value={filters.departmentId ?? ''} onValueChange={set('departmentId')}>
+          <Select value={filters.departmentId ?? '__all'} onValueChange={set('departmentId')}>
             <SelectTrigger className="h-8 text-xs">
               <SelectValue placeholder="All departments" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All departments</SelectItem>
+              <SelectItem value="__all">All departments</SelectItem>
               {departments.map((d) => (
                 <SelectItem key={d.id} value={d.id}>
                   {d.name}
@@ -161,12 +162,12 @@ export function TaskFiltersPanel({ filters, onChange, onClose }: TaskFiltersPane
           <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">
             Marketing
           </Label>
-          <Select value={filters.marketingAdId ?? ''} onValueChange={set('marketingAdId')}>
+          <Select value={filters.marketingAdId ?? '__all'} onValueChange={set('marketingAdId')}>
             <SelectTrigger className="h-8 text-xs">
               <SelectValue placeholder="All advertisers" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All advertisers</SelectItem>
+              <SelectItem value="__all">All advertisers</SelectItem>
               {marketingAds.map((ad) => (
                 <SelectItem key={ad.id} value={ad.id}>
                   {ad.advertiser}

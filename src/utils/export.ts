@@ -2,6 +2,8 @@ import * as XLSX from 'xlsx'
 import type { Task } from '@/types/entities'
 import { TASK_STATUS_LABELS, TASK_PRIORITY_LABELS } from '@/types/enums'
 import { formatDate } from '@/utils/date'
+import { slotLabel } from '@/features/tasks/timeSlots'
+import { captionText } from '@/utils/caption'
 
 /**
  * Export tasks to an Excel (.xlsx) file matching the original Desh TV Excel format.
@@ -9,6 +11,7 @@ import { formatDate } from '@/utils/date'
 export function exportTasksToExcel(tasks: Task[], workDate: string): void {
   const rows = tasks.map((task, index) => ({
     '#': index + 1,
+    'Time Section': slotLabel(task.time_slot ?? ''),
     'File Name': task.file_name,
     'Type': task.task_type?.code ?? '',
     'Assigned Person': task.assigned_profile?.full_name ?? '',
@@ -18,7 +21,7 @@ export function exportTasksToExcel(tasks: Task[], workDate: string): void {
     'Marketing Ad': task.marketing_ad?.advertiser ?? '',
     'Package Type': task.marketing_ad?.package_type ?? '',
     'Remarks': task.remarks ?? '',
-    'Caption': task.caption ?? '',
+    'Caption': captionText(task.caption),
     'YouTube Link': task.youtube_link ?? '',
     'Facebook Link': task.facebook_link ?? '',
     'Google Drive': task.google_drive_link ?? '',
@@ -32,6 +35,7 @@ export function exportTasksToExcel(tasks: Task[], workDate: string): void {
   // Auto-fit column widths
   const colWidths = [
     { wch: 4 },   // #
+    { wch: 16 },  // Time section
     { wch: 30 },  // File Name
     { wch: 12 },  // Type
     { wch: 20 },  // Assigned Person
@@ -61,12 +65,13 @@ export function exportTasksToExcel(tasks: Task[], workDate: string): void {
  */
 export function exportTasksToCSV(tasks: Task[], workDate: string): void {
   const headers = [
-    'File Name', 'Type', 'Assigned Person', 'Status', 'Priority',
+    'Time Section', 'File Name', 'Type', 'Assigned Person', 'Status', 'Priority',
     'Channel / Page', 'Marketing Ad', 'Remarks', 'Caption',
     'YouTube Link', 'Facebook Link', 'Google Drive', 'Last Updated',
   ]
 
   const rows = tasks.map((task) => [
+    slotLabel(task.time_slot ?? ''),
     task.file_name,
     task.task_type?.code ?? '',
     task.assigned_profile?.full_name ?? '',
@@ -75,7 +80,7 @@ export function exportTasksToCSV(tasks: Task[], workDate: string): void {
     task.channel?.name ?? '',
     task.marketing_ad?.advertiser ?? '',
     task.remarks ?? '',
-    task.caption ?? '',
+    captionText(task.caption),
     task.youtube_link ?? '',
     task.facebook_link ?? '',
     task.google_drive_link ?? '',
