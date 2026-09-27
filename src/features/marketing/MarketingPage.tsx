@@ -9,7 +9,7 @@ export function MarketingPage() {
   const [date, setDate] = useState(todayISO())
   const ads = useQuery({ queryKey: ['marketing-ads'], queryFn: fetchMarketingAds })
   const tasks = useQuery({ queryKey: ['marketing-progress', date], queryFn: () => fetchMarketingProgress(date) })
-  return <div className="p-6 space-y-6">
+  return <div className="p-3 sm:p-6 space-y-6">
     <div><h1 className="text-xl font-bold">Marketing Tracking</h1>
       <p className="text-sm text-muted-foreground">Campaign delivery and daily targets.</p></div>
     <div className="space-y-2"><label htmlFor="marketing-date" className="text-sm">Work date</label>

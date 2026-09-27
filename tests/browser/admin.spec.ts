@@ -16,7 +16,7 @@ async function mockApp(page: Page, { role = 'administrator', ready = true } = {}
   })
   const profile = { id: adminId, email: user.email, full_name: 'Test Administrator', application_role: role, is_active: true, manager_id: null, department_id: null, employee_code: null, designation: null }
   const employee = { ...profile, id: employeeId, email: 'employee@example.test', full_name: 'Test Employee', application_role: 'employee' }
-  const tables: Record<string, Record<string, unknown>[]> = { profiles: [profile, employee], departments: [], task_types: [], channels: [], marketing_ads: [], tasks: [] }
+  const tables: Record<string, Record<string, unknown>[]> = { profiles: [profile, employee], departments: [], task_types: [], channels: [], marketing_ads: [], tasks: [], rush_entries: [] }
   const writes: { table: string; body: Record<string, unknown> }[] = []
   await page.route(`https://${hostname}/**`, async route => {
     const request = route.request()
@@ -55,6 +55,57 @@ async function mockApp(page: Page, { role = 'administrator', ready = true } = {}
   })
   return { writes, tables }
 }
+
+test('Tasks submenu and Rush rows support inline creation, editing and automatic blanks', async ({ page }) => {
+  const mock = await mockApp(page)
+  await page.goto('/rush')
+  await expect(page.getByRole('button', { name: 'Add entry' })).toHaveCount(0)
+  await expect(page.getByRole('link', { name: 'My Task', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Tasks', exact: true }).click()
+  await expect(page.getByRole('link', { name: 'My Task', exact: true })).toBeHidden()
+  await page.getByRole('button', { name: 'Tasks', exact: true }).click()
+  await expect(page.getByRole('link', { name: 'Daily Task', exact: true })).toHaveAttribute('href', '/tasks')
+  const row = page.locator('tbody tr').first()
+  await row.getByLabel('Reporter', { exact: true }).fill('Test Reporter')
+  await expect(page.locator('tbody tr')).toHaveCount(2)
+  await row.getByRole('combobox', { name: 'Name', exact: true }).selectOption('Test Employee')
+  await row.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(row.getByRole('button', { name: 'Save', exact: true })).toHaveCount(0)
+  await row.getByRole('combobox', { name: 'Status', exact: true }).selectOption('In Progress')
+  await row.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(row.getByRole('button', { name: 'Save', exact: true })).toHaveCount(0)
+  await page.reload()
+  await expect(row.getByRole('combobox', { name: 'Status', exact: true })).toHaveValue('In Progress')
+  expect(mock.tables.rush_entries).toHaveLength(1)
+  expect(mock.tables.tasks).toHaveLength(0)
+})
+
+test('Rush loading and save failures keep inline rows and unsaved values', async ({ page }) => {
+  await mockApp(page)
+  let failLoad = true
+  let failSave = true
+  await page.route('**/rest/v1/rush_entries*', route => {
+    if ((route.request().method() === 'GET' && failLoad) || (route.request().method() === 'POST' && failSave)) {
+      return route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ message: 'Unavailable' }) })
+    }
+    return route.fallback()
+  })
+  await page.goto('/rush')
+  await expect(page.getByRole('alert')).toContainText('Unable to load Rush entries')
+  const row = page.locator('tbody tr').first()
+  await row.getByLabel('Reporter', { exact: true }).fill('Keep reporter')
+  await row.getByRole('combobox', { name: 'Name', exact: true }).selectOption('Test Employee')
+  await expect(row.getByRole('button', { name: 'Save', exact: true })).toBeDisabled()
+  failLoad = false
+  await page.getByRole('button', { name: 'Refresh' }).click()
+  await expect(row.getByRole('button', { name: 'Save', exact: true })).toBeEnabled()
+  await row.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(row.getByRole('alert')).toContainText('Your row has been kept')
+  await expect(row.getByRole('combobox', { name: 'Name', exact: true })).toHaveValue('Test Employee')
+  failSave = false
+  await row.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(row.getByRole('button', { name: 'Save', exact: true })).toHaveCount(0)
+})
 
 for (const entry of [
   { path: 'departments', title: 'Department', fields: { Name: 'Newsroom', Code: 'NEWS' } },
@@ -138,8 +189,7 @@ test('hourly sheet creates and edits rows; My Tasks locks the user filter', asyn
   const { tables, writes } = await mockApp(page)
   tables.task_types.push({ id: 'type-1', name: 'Bulletin', code: 'BULLETIN', is_active: true, sort_order: 1 })
   await page.goto('/tasks')
-  const section = page.getByRole('region', { name: '7:00 AM', exact: true })
-  await section.getByRole('button', { name: 'Add row' }).click()
+  const section = page.getByRole('region', { name: '7:00 AM', exact: true }).locator('tbody tr').first()
   await section.getByRole('textbox', { name: 'file name', exact: true }).fill('Morning bulletin')
   await section.getByRole('combobox', { name: 'task type id' }).selectOption('type-1')
   await section.getByRole('combobox', { name: 'assigned to' }).selectOption(adminId)
@@ -148,14 +198,14 @@ test('hourly sheet creates and edits rows; My Tasks locks the user filter', asyn
   expect(writes.find(w => w.table === 'tasks')?.body.time_slot).toBe('07:00')
   await section.getByRole('textbox', { name: 'file name', exact: true }).fill('Updated bulletin')
   await section.getByRole('button', { name: 'Save', exact: true }).click()
-  await expect(section.getByRole('button', { name: 'Save', exact: true })).toBeDisabled()
+  await expect(section.getByRole('button', { name: 'Save', exact: true })).toHaveCount(0)
   const ownTask = tables.tasks[0]
   tables.tasks.push({ ...ownTask, id: 'other-task', assigned_to: employeeId, file_name: 'Other employee task' })
   await page.goto('/my-tasks')
   await expect(page.getByRole('heading', { name: 'My Tasks', exact: true })).toBeVisible()
   await expect(page.locator('input').filter({ visible: true }).and(page.locator('input[value="Other employee task"]'))).toHaveCount(0)
-  await expect(page.getByRole('textbox', { name: 'file name', exact: true })).toHaveValue('Updated bulletin')
-  await expect(page.getByRole('combobox', { name: 'assigned to' })).toBeDisabled()
+  await expect(page.getByRole('textbox', { name: 'file name', exact: true }).first()).toHaveValue('Updated bulletin')
+  await expect(page.getByRole('combobox', { name: 'assigned to' }).first()).toBeDisabled()
   await page.getByRole('button', { name: 'Filters', exact: true }).click()
   await expect(page.getByText('Employee', { exact: true })).toHaveCount(0)
 })
@@ -167,8 +217,7 @@ test('failed row save retains entered data and shows setup guidance', async ({ p
     ? route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ message: 'time_slot column missing' }) })
     : route.fallback())
   await page.goto('/tasks')
-  const section = page.getByRole('region', { name: '12:00 AM', exact: true })
-  await section.getByRole('button', { name: 'Add row' }).click()
+  const section = page.getByRole('region', { name: '12:00 AM', exact: true }).locator('tbody tr').first()
   await section.getByRole('textbox', { name: 'file name', exact: true }).fill('Midnight bulletin')
   await section.getByRole('combobox', { name: 'task type id' }).selectOption('type-1')
   await section.getByRole('combobox', { name: 'assigned to' }).selectOption(adminId)
@@ -182,8 +231,7 @@ test('caption rich text survives saving and reopening; cancel discards dialog ed
   const { tables, writes } = await mockApp(page)
   tables.task_types.push({ id: 'type-1', name: 'Bulletin', is_active: true })
   await page.goto('/tasks')
-  const section = page.getByRole('region', { name: '7:00 AM', exact: true })
-  await section.getByRole('button', { name: 'Add row' }).click()
+  const section = page.getByRole('region', { name: '7:00 AM', exact: true }).locator('tbody tr').first()
   await section.getByRole('textbox', { name: 'file name', exact: true }).fill('Caption example')
   await section.getByRole('combobox', { name: 'task type id' }).selectOption('type-1')
   await section.getByRole('combobox', { name: 'assigned to' }).selectOption(adminId)
@@ -202,7 +250,7 @@ test('caption rich text survives saving and reopening; cancel discards dialog ed
   await dialog.getByRole('textbox', { name: 'Caption text' }).fill('Discard this')
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
   await expect(section.getByRole('button', { name: 'Edit caption' })).toContainText('Breaking news caption')
-  await expect(section.getByRole('button', { name: 'Save', exact: true })).toBeDisabled()
+  await expect(section.getByRole('button', { name: 'Save', exact: true })).toHaveCount(0)
 })
 
 
@@ -227,8 +275,7 @@ test('only the assigned user gets Mark as done', async ({ page }) => {
 test('selected file name expands in the full cell editor and stays synchronized', async ({ page }) => {
   await mockApp(page)
   await page.goto('/tasks')
-  const section = page.getByRole('region', { name: '7:00 AM', exact: true })
-  await section.getByRole('button', { name: 'Add row' }).click()
+  const section = page.getByRole('region', { name: '7:00 AM', exact: true }).locator('tbody tr').first()
   const cell = section.getByRole('textbox', { name: 'file name', exact: true })
   const name = 'DEMO_20260926_Community_health_tips_full_editorial_bulletin_final_version'
   await cell.fill(name)
@@ -240,16 +287,20 @@ test('selected file name expands in the full cell editor and stays synchronized'
   await expect(expanded).toHaveCount(0)
 })
 
-test('typing in a sheet text cell keeps the sheet position stable', async ({ page }) => {
+test('expanded cell editor sits above time sections and stays stable while typing', async ({ page }) => {
   await mockApp(page)
   await page.goto('/tasks')
   const editor = page.locator('.cell-editor-panel')
   await expect(editor).toBeHidden()
   const cell = page.getByRole('textbox', { name: 'file name', exact: true }).first()
   await cell.scrollIntoViewIfNeeded()
-  const before = await cell.boundingBox()
   await cell.click()
   await expect(editor).toBeVisible()
+  const editorBounds = await editor.boundingBox()
+  const sectionBounds = await page.getByRole('region', { name: '7:00 AM', exact: true }).boundingBox()
+  expect(editorBounds!.y + editorBounds!.height).toBeLessThanOrEqual(sectionBounds!.y)
+  await expect(editor).toHaveCSS('position', 'relative')
+  const before = await cell.boundingBox()
   await cell.pressSequentially('Description being typed without the sheet jumping')
   const after = await cell.boundingBox()
   expect(Math.abs(after!.y - before!.y)).toBeLessThan(2)

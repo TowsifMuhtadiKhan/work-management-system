@@ -13,6 +13,8 @@ import { CatalogPage } from '@/features/admin/CatalogPage'
 import { SettingsPage } from '@/features/admin/SettingsPage'
 import { ProfilePage } from '@/features/auth/ProfilePage'
 import { MarketingPage } from '@/features/marketing/MarketingPage'
+import { RushPage } from '@/features/rush/RushPage'
+import { ContentCreatorPage } from '@/features/content-creator/ContentCreatorPage'
 
 // Lazy admin pages that are less frequently accessed
 const router = createBrowserRouter([
@@ -33,6 +35,8 @@ const router = createBrowserRouter([
       { path: '/dashboard', element: <DashboardPage /> },
       { path: '/tasks', element: <DailyTasksPage /> },
       { path: '/my-tasks', element: <MyTasksPage /> },
+      { path: '/rush', element: <RushPage /> },
+      { path: '/content-creator', element: <ContentCreatorPage /> },
       { path: '/reports', element: <ReportsPage /> },
       { path: '/marketing', element: <MarketingPage /> },
       { path: '/profile', element: <ProfilePage /> },

@@ -59,7 +59,7 @@ export function ReportsPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 sm:p-6 space-y-6">
       <div>
         <h1 className="text-xl font-bold">Reports</h1>
         <p className="text-sm text-muted-foreground mt-0.5">Daily task performance summary</p>

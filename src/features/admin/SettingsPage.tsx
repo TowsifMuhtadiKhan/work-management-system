@@ -7,7 +7,7 @@ import { useAdministrationReady } from './useAdministrationReady'
 export function SettingsPage() {
   const ready = useAdministrationReady()
   const signupUrl = `${window.location.origin}/signup`
-  return <div className="p-6 space-y-6 max-w-5xl">
+  return <div className="p-3 sm:p-6 space-y-6 max-w-5xl">
     <div><h1 className="text-xl font-bold">Administration Settings</h1><p className="text-sm text-muted-foreground mt-1">Account security, access setup, and guidance for your team.</p></div>
     <section className="rounded-lg border bg-card p-5 space-y-3">
       <h2 className="font-semibold">Employee management setup</h2>

@@ -189,7 +189,7 @@ export function TaskFormDialog({
           </div>
 
           {/* Row 2: Type + Assigned To */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>
                 Task Type <span className="text-destructive">*</span>
@@ -237,7 +237,7 @@ export function TaskFormDialog({
           </div>
 
           {/* Row 3: Status + Priority */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>Status</Label>
               <Select value={form.status} onValueChange={set('status')}>
@@ -272,7 +272,7 @@ export function TaskFormDialog({
           </div>
 
           {/* Row 4: Channel + Marketing Ad */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>Channel / Page</Label>
               <Select value={form.channel_id} onValueChange={set('channel_id')}>

@@ -33,7 +33,7 @@ export function TaskFiltersPanel({ filters, onChange, onClose, hideAssignee = fa
   const activeCount = Object.values(filters).filter(Boolean).length
 
   return (
-    <div className="border-b bg-muted/30 px-6 py-3">
+    <div className="border-b bg-muted/30 px-3 sm:px-6 py-3">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <span className="text-xs font-medium">Filters</span>

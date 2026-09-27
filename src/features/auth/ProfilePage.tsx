@@ -6,7 +6,7 @@ import { AccountSecurity } from '@/features/admin/AccountSecurity'
 export function ProfilePage() {
   const { user } = useAuth()
   const { data: profile } = useProfile(user?.id)
-  return <div className="p-6 space-y-6 max-w-3xl">
+  return <div className="p-3 sm:p-6 space-y-6 max-w-3xl">
     <h1 className="text-xl font-bold">My Profile</h1>
     <section className="rounded-lg border bg-card p-5 space-y-2">
       <h2 className="font-semibold">{profile?.full_name}</h2><p className="text-sm">{profile?.email}</p>

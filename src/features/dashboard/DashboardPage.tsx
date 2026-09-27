@@ -87,7 +87,7 @@ export function DashboardPage() {
   })
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 sm:p-6 space-y-6">
       {/* Header */}
       <div>
         <h1 className="text-xl font-bold">Operations Dashboard</h1>

@@ -28,7 +28,7 @@ export function CatalogPage({ catalog }: { catalog: Catalog }) {
   })
   const rows = (query.data ?? []).filter(row => config.fields.some(field => String(row[field.key] ?? '').toLowerCase().includes(search.toLowerCase())))
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 sm:p-6 space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div><h1 className="text-xl font-bold">{config.title}</h1><p className="text-sm text-muted-foreground mt-1">{config.description}</p></div>
         <Button onClick={() => setEditing('new')}><Plus className="mr-2 h-4 w-4" />Add {config.singular}</Button>

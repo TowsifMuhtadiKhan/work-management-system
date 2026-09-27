@@ -20,6 +20,7 @@ import type { DbTaskInsert } from '@/types/database'
 import { TaskHistoryDrawer } from './TaskHistoryDrawer'
 import { TIME_SLOTS, slotLabel } from './timeSlots'
 import { CaptionEditor } from './CaptionEditor'
+import { ContentSourceIcon } from '@/components/common/ContentSourceIcon'
 
 type Option = { id: string; label: string }
 type Props = { tasks: Task[]; profile: Profile; workDate: string; mine: boolean }
@@ -59,8 +60,8 @@ export function TaskSheet({ tasks, profile, workDate, mine }: Props) {
     priority: Object.entries(TASK_PRIORITY_LABELS).map(([id, label]) => ({ id, label })),
     time_slot: ['', ...TIME_SLOTS].map(id => ({ id, label: slotLabel(id) })),
   }
-  return <CellEditorContext.Provider value={{ host: editorHost, selected: selectedCell, select: setSelectedCell }}><div className="task-sheet p-4 space-y-4">
-    <div data-cell-editor className="cell-editor-panel fixed top-16 left-4 right-4 z-20 mx-auto max-w-4xl max-h-[40vh] overflow-y-auto rounded-lg border border-indigo-200 bg-background p-3 shadow-lg dark:border-indigo-800">
+  return <CellEditorContext.Provider value={{ host: editorHost, selected: selectedCell, select: setSelectedCell }}><div className="task-sheet p-2 sm:p-4 space-y-4">
+    <div data-cell-editor className="cell-editor-panel relative w-full max-h-[40vh] overflow-y-auto rounded-lg border border-indigo-200 bg-background p-3 shadow-sm dark:border-indigo-800">
       <div ref={setEditorHost} className="empty:hidden" />
     </div>
     {[people, types, channels, ads].some(q => q.isError) && <p role="alert" className="text-destructive">Some dropdown options could not load. Refresh to try again.</p>}
@@ -83,8 +84,8 @@ export function TaskSheet({ tasks, profile, workDate, mine }: Props) {
           </button></h2>
         </div>
         <div id={contentId} hidden={isCollapsed}>
-        {(rows.length || canCreate) ? <div className="overflow-x-auto"><table className="w-full text-xs">
-          <thead className="sheet-columns"><tr>{['File name', 'Type', 'Assigned person', 'Status', 'Channel / Page', 'Marketing ad', 'Remarks', 'Caption', 'YouTube link', 'Facebook link', 'Drive link', 'Priority', 'Time section', 'Actions'].map(label => <th key={label} className={`text-left px-2 py-1.5 whitespace-nowrap font-extrabold ${label === 'Actions' ? 'sheet-actions' : ''}`}><span className="inline-flex items-center gap-1.5">{(label === 'YouTube link' || label === 'Facebook link' || label === 'Drive link') && <PlatformIcon platform={label} />}{label}</span></th>)}</tr></thead>
+        {(rows.length || canCreate) ? <div className="overflow-x-auto"><table className="responsive-sheet w-full text-xs">
+          <thead className="sheet-columns"><tr><th scope="col" className="w-10 px-1"><span className="sr-only">Source</span></th>{['File name', 'Type', 'Assigned person', 'Status', 'Channel / Page', 'Marketing ad', 'Remarks', 'Caption', 'YouTube link', 'Facebook link', 'Drive link', 'Priority', 'Time section', 'Actions'].map(label => <th key={label} className={`text-left px-2 py-1.5 whitespace-nowrap font-extrabold ${label === 'Actions' ? 'sheet-actions' : ''}`}><span className="inline-flex items-center gap-1.5">{(label === 'YouTube link' || label === 'Facebook link' || label === 'Drive link') && <PlatformIcon platform={label} />}{label}</span></th>)}</tr></thead>
           <tbody>{rows.map(task => <SheetRow key={task.id} task={task} slot={slot} profile={profile} workDate={workDate} mine={mine} catalogs={catalogs} editable={permissions.canEditTask(task.assigned_to, task.assigned_profile)} onHistory={() => setHistory(task)} />)}
             {canCreate && <DraftRows key={`${workDate}-${mine}-${profile.id}`} slot={slot} profile={profile} workDate={workDate} mine={mine} catalogs={catalogs} editable />}
           </tbody>
@@ -166,11 +167,12 @@ function SheetRow({ task, slot, profile, workDate, mine, catalogs, editable, onR
   }
   const fields = ['file_name', 'task_type_id', 'assigned_to', 'status', 'channel_id', 'marketing_ad_id', 'remarks', 'caption', 'youtube_link', 'facebook_link', 'google_drive_link', 'priority', 'time_slot'] as const
   return <tr data-status={form.status} data-dirty={dirty} className="sheet-row border-b align-top">
+    <td data-label="Source" className="p-1.5"><ContentSourceIcon packageId={task?.source_content_id} /></td>
     {fields.map(field => {
       const value = String(form[field] ?? '')
       const options = catalogs[field]
       const disabled = !editable || saving || (mine && field === 'assigned_to')
-      return <td key={field} className="p-1.5">
+      return <td key={field} data-label={field.replaceAll('_', ' ')} className="p-1.5">
         {field === 'caption' ? <CaptionEditor value={value} disabled={disabled} onChange={caption => handleChange("caption", caption)} /> : options ? <select data-field={field} data-value={value} aria-label={field.replaceAll('_', ' ')} className={`sheet-select h-9 ${field === 'status' || field === 'time_slot' ? 'w-[120px] min-w-[120px] max-w-[120px]' : field === 'priority' ? 'w-24 min-w-24 max-w-24' : 'min-w-36 max-w-52'} rounded-md border px-2 font-medium disabled:opacity-60`} value={value} disabled={disabled} onChange={e => handleChange(field, e.target.value)}>
           {field !== 'time_slot' && <option value="">Select…</option>}
           {value && !options.some(o => o.id === value) && <option value={value}>{field === 'assigned_to' ? task?.assigned_profile?.full_name ?? profile.full_name : field === 'task_type_id' ? task?.task_type?.name ?? value : field === 'channel_id' ? task?.channel?.name ?? value : task?.marketing_ad?.advertiser ?? value}</option>}
@@ -184,7 +186,7 @@ function SheetRow({ task, slot, profile, workDate, mine, catalogs, editable, onR
         </>}
       </td>
     })}
-    <td className="sheet-actions p-2"><div className="flex w-[108px] flex-wrap items-center gap-1 [&>*]:shrink-0">
+    <td data-label="Actions" className="sheet-actions p-2"><div className="flex w-[108px] flex-wrap items-center gap-1 [&>*]:shrink-0">
       {task && canComplete && task.status !== 'done' && <Button size="icon" aria-label="Mark as done" className="h-8 w-8 bg-emerald-700 hover:bg-emerald-800 text-white" disabled={saving || dirty || !!completionError} title={completionError ?? (dirty ? 'Save or cancel row edits before marking done' : 'Complete your assigned task')} onClick={async () => {
         setSaving(true); setError('')
         try { await markTaskDone(task.id, profile.id); await refresh(); toast.success('Task marked as done') }
@@ -195,7 +197,7 @@ function SheetRow({ task, slot, profile, workDate, mine, catalogs, editable, onR
       {editable && (dirty || !task) && <Button className="h-6 w-6 bg-emerald-700 hover:bg-emerald-800 text-white" size="icon" aria-label="Save" title="Save changes" disabled={saving || !dirty} onClick={() => void save()}>{saving ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /> : <Save className="h-3 w-3" aria-hidden="true" />}</Button>}
       {(dirty || !task) && <Button size="icon" className="h-6 w-6 text-muted-foreground" aria-label="Cancel" title="Discard changes" variant="ghost" disabled={saving || !dirty} onClick={() => { setChanges({}); setError(''); onRemove?.() }}><X className="h-3 w-3" aria-hidden="true" /></Button>}
       {task && <Button size="icon" className="h-8 w-8 text-indigo-600 hover:text-indigo-700 dark:text-indigo-300" variant="ghost" title="History" aria-label="History" onClick={onHistory}><History className="h-4 w-4" aria-hidden="true" /></Button>}
-      {task && profile.application_role === 'administrator' && <Button size="icon" className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-950/40" variant="ghost" title="Delete" aria-label="Delete" disabled={saving} onClick={async () => {
+      {task && !task.source_content_id && profile.application_role === 'administrator' && <Button size="icon" className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-950/40" variant="ghost" title="Delete" aria-label="Delete" disabled={saving} onClick={async () => {
         if (!window.confirm(`Delete "${task.file_name}"?`)) return
         setSaving(true)
         try { await deleteTask(task.id); await refresh() } catch { setError('Unable to delete row') } finally { setSaving(false) }

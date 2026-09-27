@@ -164,8 +164,40 @@
 .caption-document blockquote { border-left: 3px solid #a78bfa; padding-left: 1rem; }
 .caption-document a { color: #6d28d9; text-decoration: underline; cursor: pointer; }
 .dark .caption-document a { color: #c4b5fd; }
-/* Floating editor appears only during editing, without shifting the sheet. */
+/* The expanded editor appears above the time sections while editing. */
 .cell-editor-panel:has(> div:empty) { display: none; }
 /* Keep the action column stable when editing reveals save/cancel controls. */
 .sheet-actions { width: 124px; min-width: 124px; max-width: 124px; }
 .sheet-row > .sheet-actions { height: 72px; }
+
+/* Phone layouts retain the same fields and row state as the desktop sheets. */
+@media (max-width: 767px) {
+  .responsive-sheet { display: block; width: 100%; min-width: 0; border: 0; }
+  .responsive-sheet caption { display: block; width: 100%; border-radius: .5rem .5rem 0 0; font-size: 1rem; }
+  .responsive-sheet thead { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+  .responsive-sheet tbody { display: block; width: 100%; }
+  .responsive-sheet tbody > tr:not([hidden]) { display: grid; grid-template-columns: minmax(0, 1fr); margin: .75rem 0; border: 1px solid hsl(var(--border)); border-radius: .5rem; overflow: hidden; background: hsl(var(--background)); }
+  .responsive-sheet tbody > tr[hidden] { display: none; }
+  .responsive-sheet td { display: block; width: auto; min-width: 0; max-width: none; height: auto; padding: .65rem .75rem; border: 0; border-bottom: 1px solid hsl(var(--border)); overflow-wrap: anywhere; }
+  .responsive-sheet td::before { content: attr(data-label); display: block; margin-bottom: .35rem; text-transform: capitalize; font-size: .75rem; font-weight: 600; color: hsl(var(--muted-foreground)); }
+  .responsive-sheet td[data-label="Source"]:empty { display: none; }
+  .responsive-sheet td > input, .responsive-sheet td > select, .responsive-sheet td > textarea, .responsive-sheet td > button { width: 100%; min-width: 0; max-width: none; }
+  .responsive-sheet .sheet-actions { width: auto; min-width: 0; max-width: none; height: auto; }
+  .responsive-sheet .sheet-actions > div { width: 100%; }
+  .responsive-sheet .sheet-row > td { border-left: 0; border-right: 0; }
+  .responsive-sheet .sheet-row[data-dirty="true"] { border-color: #d97706; }
+  .cell-editor-panel { max-height: 45dvh; }
+}
+
+@media (max-width: 639px) {
+  /* Avoid input zoom on iOS and provide usable touch targets. */
+  input:not([type="checkbox"]):not([type="radio"]), select, textarea { font-size: 16px !important; min-width: 0; }
+  input:not([type="checkbox"]):not([type="radio"]):not([type="date"]), select { min-height: 44px; }
+  button:not([role="checkbox"]):not([role="switch"]), a[role="button"] { min-height: 44px; }
+  button:has(> svg:only-child) { min-width: 44px; }
+  .mobile-navigation nav a { min-height: 44px; }
+  [role="dialog"], [role="alertdialog"] { max-height: calc(100dvh - 1.5rem); }
+  [role="dialog"].mobile-navigation { max-height: 100dvh; }
+}
+
+.app-shell { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }

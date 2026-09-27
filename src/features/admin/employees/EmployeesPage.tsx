@@ -34,7 +34,7 @@ export function EmployeesPage() {
   const people = profiles.data ?? []
   const visible = people.filter(p => (role === 'all' || p.application_role === role) && `${p.full_name} ${p.email} ${p.employee_code ?? ''}`.toLowerCase().includes(search.toLowerCase()))
   const saved = () => { setEditing(null); void client.invalidateQueries() }
-  return <div className="p-6 space-y-6">
+  return <div className="p-3 sm:p-6 space-y-6">
     <div className="flex flex-wrap items-center justify-between gap-4">
       <div><h1 className="text-xl font-bold">Employees & access</h1><p className="text-sm text-muted-foreground mt-1">Manage your team, reporting structure, and administrator access.</p></div>
       <Button disabled={!ready.data} onClick={() => setAdding(true)}><Plus className="mr-2 h-4 w-4" />Add Employee</Button>
@@ -155,7 +155,7 @@ function EmployeeEditor({ profile, people, departments, departmentsReady, curren
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       <fieldset disabled={saving} className="space-y-4">
         <div className="space-y-1.5"><Label htmlFor="edit-name">Full name</Label><Input id="edit-name" required value={name} onChange={e => setName(e.target.value)} /></div>
-        <div className="grid grid-cols-2 gap-3"><div className="space-y-1.5"><Label htmlFor="edit-code">Employee code</Label><Input id="edit-code" value={code} onChange={e => setCode(e.target.value)} /></div><div className="space-y-1.5"><Label htmlFor="edit-designation">Designation</Label><Input id="edit-designation" value={designation} onChange={e => setDesignation(e.target.value)} /></div></div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3"><div className="space-y-1.5"><Label htmlFor="edit-code">Employee code</Label><Input id="edit-code" value={code} onChange={e => setCode(e.target.value)} /></div><div className="space-y-1.5"><Label htmlFor="edit-designation">Designation</Label><Input id="edit-designation" value={designation} onChange={e => setDesignation(e.target.value)} /></div></div>
         <div className="space-y-1.5"><Label htmlFor="edit-department">Department</Label><select id="edit-department" className={selectClass} disabled={!departmentsReady} value={department} onChange={e => setDepartment(e.target.value)}><option value="">No department</option>{departments.filter(d => d.is_active || d.id === department).map(d => <option key={d.id} value={d.id}>{d.name}{!d.is_active ? ' (inactive)' : ''}</option>)}</select>{!departmentsReady && <p className="text-xs text-muted-foreground">Departments are unavailable; the current department will be kept.</p>}</div>
         <div className="space-y-1.5"><Label htmlFor="edit-manager">Reports to</Label><select id="edit-manager" className={selectClass} value={manager} onChange={e => setManager(e.target.value)}><option value="">No manager</option>{people.filter(p => p.id !== profile.id && (p.is_active || p.id === manager)).map(p => <option key={p.id} value={p.id} disabled={createsCycle(p.id)}>{p.full_name} — {APP_ROLE_LABELS[p.application_role]}</option>)}</select></div>
         <div className="space-y-1.5"><Label htmlFor="edit-role">Role</Label><select id="edit-role" className={selectClass} value={role} disabled={ownAccount} onChange={e => { setRole(e.target.value as AppRole); setConfirmed(false) }}>{Object.entries(APP_ROLE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>

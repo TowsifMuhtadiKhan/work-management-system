@@ -1,4 +1,4 @@
-import { Moon, Sun, Bell, LogOut, User, ChevronDown } from 'lucide-react'
+import { Moon, Sun, Bell, LogOut, User, ChevronDown, Menu } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -20,9 +20,11 @@ interface TopHeaderProps {
   isDark: boolean
   onToggleDark: () => void
   pageTitle?: string
+  onOpenMenu: () => void
+  menuOpen: boolean
 }
 
-export function TopHeader({ profile, isDark, onToggleDark, pageTitle }: TopHeaderProps) {
+export function TopHeader({ profile, isDark, onToggleDark, pageTitle, onOpenMenu, menuOpen }: TopHeaderProps) {
   const navigate = useNavigate()
 
   const handleSignOut = async () => {
@@ -35,9 +37,10 @@ export function TopHeader({ profile, isDark, onToggleDark, pageTitle }: TopHeade
   }
 
   return (
-    <header className="h-14 flex items-center justify-between px-6 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-40">
+    <header className="h-14 shrink-0 flex items-center justify-between gap-2 px-3 sm:px-6 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-40">
       {/* Page title */}
-      <div>
+      <div className="flex min-w-0 items-center gap-2">
+        <Button variant="ghost" size="icon" className="lg:hidden shrink-0" aria-label="Open navigation" aria-expanded={menuOpen} onClick={onOpenMenu}><Menu className="h-5 w-5" /></Button>
         {pageTitle && (
           <h1 className="text-base font-semibold text-foreground">{pageTitle}</h1>
         )}
@@ -59,7 +62,7 @@ export function TopHeader({ profile, isDark, onToggleDark, pageTitle }: TopHeade
         {profile && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="flex items-center gap-2 h-9 px-2">
+              <Button variant="ghost" aria-label="Account menu" className="flex items-center gap-2 h-9 px-2">
                 <UserAvatar
                   name={profile.full_name}
                   avatarUrl={profile.avatar_url}

@@ -1,4 +1,5 @@
 import { captionText } from '@/utils/caption'
+import { ContentSourceIcon } from '@/components/common/ContentSourceIcon'
 import { useState } from 'react'
 import { ExternalLink, Edit, History, Trash2, MoreHorizontal } from 'lucide-react'
 import { toast } from 'sonner'
@@ -60,6 +61,7 @@ export function TaskTable({ tasks, currentProfile, onRefetch }: TaskTableProps) 
         <Table className="task-table text-xs">
           <TableHeader>
             <TableRow className="bg-muted/50 hover:bg-muted/50">
+              <TableHead className="w-10"><span className="sr-only">Source</span></TableHead>
               <TableHead className="w-6 text-center">#</TableHead>
               <TableHead className="min-w-[160px]">File Name</TableHead>
               <TableHead className="w-24">Type</TableHead>
@@ -82,6 +84,7 @@ export function TaskTable({ tasks, currentProfile, onRefetch }: TaskTableProps) 
 
               return (
                 <TableRow key={task.id} className="group">
+                  <TableCell><ContentSourceIcon packageId={task.source_content_id} /></TableCell>
                   <TableCell className="text-center text-muted-foreground">{index + 1}</TableCell>
 
                   {/* File Name */}
@@ -272,7 +275,7 @@ export function TaskTable({ tasks, currentProfile, onRefetch }: TaskTableProps) 
                               <Edit className="mr-2 h-3.5 w-3.5" />
                               Edit Task
                             </DropdownMenuItem>
-                            {isAdmin && (
+                            {isAdmin && !task.source_content_id && (
                               <>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem

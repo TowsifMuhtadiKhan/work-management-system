@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -17,7 +18,10 @@ import type { TaskFilters } from '@/types/entities'
 export function DailyTasksPage({ mine = false }: { mine?: boolean }) {
   const { user } = useAuth()
   const profile = useProfile(user?.id)
-  const [workDate, setWorkDate] = useState(todayISO())
+  const [params, setParams] = useSearchParams()
+  const dateParam = params.get('date')
+  const workDate = dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) && !Number.isNaN(Date.parse(dateParam)) ? dateParam : todayISO()
+  const setWorkDate = (date: string) => setParams(previous => { const next = new URLSearchParams(previous); next.set('date', date); return next }, { replace: true })
   const [search, setSearch] = useState('')
   const [showFilters, setShowFilters] = useState(false)
   const [filters, setFilters] = useState<Omit<TaskFilters, 'workDate' | 'search'>>({})
@@ -26,7 +30,7 @@ export function DailyTasksPage({ mine = false }: { mine?: boolean }) {
   const query = useQuery({ queryKey: ['tasks', workDate, search, filters, mine ? user?.id : 'all'], queryFn: () => fetchTasks(queryFilters), enabled: !!user?.id })
   const tasks = query.data ?? []
   return <div className="flex flex-col h-full">
-    <div className="border-b px-6 py-4 space-y-3 bg-gradient-to-r from-rose-50 via-background to-indigo-50 dark:from-rose-950/30 dark:to-indigo-950/30">
+    <div className="border-b px-3 sm:px-6 py-4 space-y-3 bg-gradient-to-r from-rose-50 via-background to-indigo-50 dark:from-rose-950/30 dark:to-indigo-950/30">
       <div><h1 className="text-xl font-bold">{mine ? 'My Tasks' : 'Daily Tasks'}</h1><p className="text-sm text-muted-foreground">{mine ? 'Your assignments, organized by time.' : 'Add rows under a time section, fill in the cells, then save each row.'}</p></div>
       <div className="flex flex-wrap items-center gap-3 justify-between">
         <DateNavigator date={workDate} onDateChange={setWorkDate} />

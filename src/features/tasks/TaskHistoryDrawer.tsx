@@ -51,7 +51,7 @@ export function TaskHistoryDrawer({ task, open, onClose }: TaskHistoryDrawerProp
       />
 
       {/* Drawer */}
-      <div className="fixed right-0 top-0 z-50 h-full w-96 bg-background border-l shadow-2xl flex flex-col">
+      <div className="fixed right-0 top-0 z-50 h-dvh w-full sm:w-96 bg-background border-l shadow-2xl flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b">
           <div>
@@ -60,7 +60,7 @@ export function TaskHistoryDrawer({ task, open, onClose }: TaskHistoryDrawerProp
               {task.file_name}
             </p>
           </div>
-          <Button variant="ghost" size="icon" onClick={onClose}>
+          <Button variant="ghost" size="icon" aria-label="Close history" onClick={onClose}>
             <X className="h-4 w-4" />
           </Button>
         </div>
