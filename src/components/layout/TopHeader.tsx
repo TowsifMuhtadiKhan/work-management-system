@@ -1,4 +1,4 @@
-import { Moon, Sun, Bell, LogOut, User, ChevronDown, Menu } from 'lucide-react'
+import { Moon, Sun, Bell, LogOut, User, ChevronDown, Menu, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -22,9 +22,11 @@ interface TopHeaderProps {
   pageTitle?: string
   onOpenMenu: () => void
   menuOpen: boolean
+  sidebarCollapsed: boolean
+  onToggleSidebar: () => void
 }
 
-export function TopHeader({ profile, isDark, onToggleDark, pageTitle, onOpenMenu, menuOpen }: TopHeaderProps) {
+export function TopHeader({ profile, isDark, onToggleDark, pageTitle, onOpenMenu, menuOpen, sidebarCollapsed, onToggleSidebar }: TopHeaderProps) {
   const navigate = useNavigate()
 
   const handleSignOut = async () => {
@@ -41,6 +43,9 @@ export function TopHeader({ profile, isDark, onToggleDark, pageTitle, onOpenMenu
       {/* Page title */}
       <div className="flex min-w-0 items-center gap-2">
         <Button variant="ghost" size="icon" className="lg:hidden shrink-0" aria-label="Open navigation" aria-expanded={menuOpen} onClick={onOpenMenu}><Menu className="h-5 w-5" /></Button>
+        <Button variant="ghost" size="icon" className="hidden lg:inline-flex shrink-0" aria-label={sidebarCollapsed ? 'Expand menu' : 'Collapse menu'} title={sidebarCollapsed ? 'Expand menu' : 'Collapse menu'} aria-expanded={!sidebarCollapsed} aria-controls="desktop-navigation" onClick={onToggleSidebar}>
+          {sidebarCollapsed ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
+        </Button>
         {pageTitle && (
           <h1 className="text-base font-semibold text-foreground">{pageTitle}</h1>
         )}

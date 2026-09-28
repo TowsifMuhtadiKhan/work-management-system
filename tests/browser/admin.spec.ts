@@ -56,6 +56,32 @@ async function mockApp(page: Page, { role = 'administrator', ready = true } = {}
   return { writes, tables }
 }
 
+test('marketing popup shows daily counts, stays open, and preserves a fitted task sheet', async ({ page }) => {
+  await page.setViewportSize({ width: 1679, height: 920 })
+  const mock = await mockApp(page)
+  mock.tables.marketing_ads.push({ id: 'ad-1', advertiser: 'Example advertiser', package_type: 'News', daily_target: 3, is_active: true, valid_from: null, valid_to: null })
+  mock.tables.tasks.push({ id: 'task-1', marketing_ad_id: 'ad-1', status: 'done', work_date: '2026-09-28', file_name: 'Uploaded story', assigned_to: employeeId, time_slot: '07:00', priority: 'normal' })
+  await page.goto('/tasks?date=2026-09-28')
+  const draft = page.locator('.sheet-row').filter({ has: page.getByRole('button', { name: 'Save', exact: true }) }).first()
+  await draft.getByLabel('file name', { exact: true }).fill('Keep my draft')
+  await page.getByRole('button', { name: 'Open Marketing Daily Sheet' }).click()
+  const dialog = page.getByRole('dialog')
+  const summary = dialog.getByRole('row').filter({ hasText: 'Example advertiser' })
+  await expect(summary.getByRole('cell')).toHaveText(['News', '3', '1', '2'])
+  await page.keyboard.press('Escape')
+  await expect(dialog).toBeVisible()
+  await page.mouse.click(5, 5)
+  await expect(dialog).toBeVisible()
+  await dialog.getByRole('button', { name: 'Close', exact: true }).first().click()
+  await expect(draft.getByLabel('file name', { exact: true })).toHaveValue('Keep my draft')
+  await expect(draft.getByLabel('google drive link', { exact: true })).toHaveCount(0)
+  await expect(draft.getByLabel('time slot', { exact: true })).toHaveCount(0)
+  for (const width of [1679, 1280, 768, 390]) {
+    await page.setViewportSize({ width, height: 920 })
+    expect(await page.locator('.task-sheet').evaluate(el => [...el.querySelectorAll('table')].every(table => table.scrollWidth <= table.clientWidth + 1))).toBe(true)
+  }
+})
+
 test('Tasks submenu and Rush rows support inline creation, editing and automatic blanks', async ({ page }) => {
   const mock = await mockApp(page)
   await page.goto('/rush')
@@ -308,6 +334,8 @@ test('expanded cell editor sits above time sections and stays stable while typin
   await expect(cell).toHaveValue('Description being typed without the sheet jumping')
   await expect(cell).toBeFocused()
   await page.getByRole('columnheader', { name: 'File name', exact: true }).first().click()
+  await expect(editor).toBeVisible()
+  await page.getByRole('button', { name: 'Close expanded editor' }).click()
   await expect(editor).toBeHidden()
 })
 
@@ -321,7 +349,7 @@ for (const missing of ['remarks', 'youtube_link', 'facebook_link']) {
     const row = page.locator('tr').filter({ has: page.getByRole('textbox', { name: 'file name', exact: true }).and(page.locator('[value="Incomplete task"]')) })
     await expect(row.getByRole('button', { name: 'Mark as done' })).toBeDisabled()
     await expect(row.getByRole('combobox', { name: 'status', exact: true }).locator('option[value="done"]')).toBeDisabled()
-    for (const platform of ['YouTube link', 'Facebook link', 'Drive link']) {
+    for (const platform of ['YouTube link', 'Facebook link']) {
       await expect(page.getByRole('img', { name: platform, exact: true }).first()).toBeVisible()
     }
   })

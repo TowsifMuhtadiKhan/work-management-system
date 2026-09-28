@@ -50,26 +50,27 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
 interface SidebarProps {
   profile: Profile | null
   className?: string
+  collapsed?: boolean
 }
 
-export function Sidebar({ profile, className }: SidebarProps) {
+export function Sidebar({ profile, className, collapsed = false }: SidebarProps) {
   const isAdmin = profile?.application_role === 'administrator'
   const canViewReports = profile
     ? ['administrator', 'manager', 'team_lead'].includes(profile.application_role)
     : false
 
   return (
-    <aside className={cn('flex flex-col w-60 h-full min-h-0 bg-sidebar text-sidebar-foreground border-r border-sidebar-border', className)}>
+    <aside className={cn('flex flex-col h-full min-h-0 bg-sidebar text-sidebar-foreground border-r border-sidebar-border', collapsed ? 'w-16' : 'w-60', className)}>
       {/* Logo / Brand */}
-      <div className="flex flex-col items-center justify-center px-6 py-5 border-b border-sidebar-border">
-        <BrandLogo className="w-full" />
-        <p className="mt-3 text-[10px] uppercase tracking-widest text-sidebar-foreground/60">Digital Content Management</p>
+      <div className={cn('flex flex-col items-center justify-center border-b border-sidebar-border', collapsed ? 'px-2 py-4' : 'px-6 py-5')}>
+        {collapsed ? <span title="Desh TV" aria-label="Desh TV" className="flex h-10 w-10 items-center justify-center rounded-lg border-b-2 border-yellow-400 bg-white text-2xl font-bold text-red-700">D</span> : <BrandLogo className="w-full" />}
+        {!collapsed && <p className="mt-3 text-[10px] uppercase tracking-widest text-sidebar-foreground/60">Digital Content Management</p>}
       </div>
 
       <ScrollArea className="min-h-0 flex-1 py-4">
         {/* Main Navigation */}
-        <nav className="px-3 space-y-0.5">
-          <p className="px-2 mb-2 text-[10px] font-semibold uppercase tracking-widest text-sidebar-foreground/40">
+        <nav aria-label="Main" className={cn('space-y-0.5', collapsed ? 'px-2' : 'px-3')}>
+          <p className={cn('px-2 mb-2 text-[10px] font-semibold uppercase tracking-widest text-sidebar-foreground/40', collapsed && 'sr-only')}>
             Main
           </p>
           {NAV_ITEMS.filter((item) => {
@@ -77,8 +78,8 @@ export function Sidebar({ profile, className }: SidebarProps) {
             return true
           }).map((item) => (
             <div key={item.href}>
-              <SidebarNavLink item={item} />
-              {item.href === '/dashboard' && <TasksMenu />}
+              <SidebarNavLink item={item} collapsed={collapsed} />
+              {item.href === '/dashboard' && <TasksMenu collapsed={collapsed} />}
             </div>
           ))}
         </nav>
@@ -86,12 +87,12 @@ export function Sidebar({ profile, className }: SidebarProps) {
         {isAdmin && (
           <>
             <Separator className="my-4 bg-sidebar-border" />
-            <nav className="px-3 space-y-0.5">
-              <p className="px-2 mb-2 text-[10px] font-semibold uppercase tracking-widest text-sidebar-foreground/40">
+            <nav aria-label="Administration" className={cn('space-y-0.5', collapsed ? 'px-2' : 'px-3')}>
+              <p className={cn('px-2 mb-2 text-[10px] font-semibold uppercase tracking-widest text-sidebar-foreground/40', collapsed && 'sr-only')}>
                 Administration
               </p>
               {ADMIN_NAV_ITEMS.map((item) => (
-                <SidebarNavLink key={item.href} item={item} />
+                <SidebarNavLink key={item.href} item={item} collapsed={collapsed} />
               ))}
             </nav>
           </>
@@ -99,18 +100,23 @@ export function Sidebar({ profile, className }: SidebarProps) {
       </ScrollArea>
 
       {/* Version footer */}
-      <div className="px-6 py-3 border-t border-sidebar-border">
+      <div className={cn('px-6 py-3 border-t border-sidebar-border', collapsed && 'hidden')}>
         <p className="text-[10px] text-sidebar-foreground/30">v1.0.0 — Digital Operations</p>
       </div>
     </aside>
   )
 }
 
-function TasksMenu() {
+function TasksMenu({ collapsed }: { collapsed: boolean }) {
   const submenuId = useId()
   const { pathname } = useLocation()
   const isActive = pathname === '/tasks' || pathname === '/my-tasks'
   const [expanded, setExpanded] = useState(true)
+
+  if (collapsed) return <div className="space-y-0.5">
+    <SidebarNavLink collapsed item={{ label: 'My Task', href: '/my-tasks', icon: ClipboardList }} />
+    <SidebarNavLink collapsed item={{ label: 'Daily Task', href: '/tasks', icon: CalendarDays }} />
+  </div>
 
   return (
     <div>
@@ -135,16 +141,19 @@ function TasksMenu() {
   )
 }
 
-function SidebarNavLink({ item }: { item: NavItem }) {
+function SidebarNavLink({ item, collapsed = false }: { item: NavItem; collapsed?: boolean }) {
   const Icon = item.icon
 
   return (
     <NavLink
       to={item.href}
+      title={collapsed ? item.label : undefined}
+      aria-label={collapsed ? item.label : undefined}
       end={item.href === '/'}
       className={({ isActive }) =>
         cn(
           'group flex items-center justify-between w-full px-3 py-2 rounded-md text-sm transition-colors',
+          collapsed && 'justify-center px-0 h-11',
           isActive
             ? 'bg-sidebar-accent text-sidebar-primary font-medium'
             : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground'
@@ -153,9 +162,9 @@ function SidebarNavLink({ item }: { item: NavItem }) {
     >
       <span className="flex items-center gap-2.5">
         <Icon className="h-4 w-4 shrink-0" />
-        {item.label}
+        {!collapsed && item.label}
       </span>
-      <ChevronRight className="h-3 w-3 opacity-0 group-hover:opacity-50 transition-opacity" />
+      {!collapsed && <ChevronRight className="h-3 w-3 opacity-0 group-hover:opacity-50 transition-opacity" />}
     </NavLink>
   )
 }

@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { DateNavigator } from '@/components/common/DateNavigator'
 import { TaskFiltersPanel } from './TaskFilters'
 import { TaskSheet } from './TaskSheet'
+import { MarketingDailySheet } from './MarketingDailySheet'
 import { useAuth } from '@/hooks/useAuth'
 import { useProfile } from '@/hooks/useProfile'
 import { useTasksRealtime } from '@/hooks/useRealtime'
@@ -35,6 +36,7 @@ export function DailyTasksPage({ mine = false }: { mine?: boolean }) {
       <div className="flex flex-wrap items-center gap-3 justify-between">
         <DateNavigator date={workDate} onDateChange={setWorkDate} />
         <div className="flex flex-wrap gap-2">
+          <MarketingDailySheet workDate={workDate} />
           <Input aria-label="Search file name" placeholder="Search file name..." className="w-48" value={search} onChange={e => setSearch(e.target.value)} />
           <Button variant="outline" onClick={() => setShowFilters(!showFilters)}>Filters</Button>
           <Button variant="outline" onClick={() => void query.refetch()}>Refresh</Button>

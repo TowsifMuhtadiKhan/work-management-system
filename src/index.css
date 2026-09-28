@@ -170,6 +170,22 @@
 .sheet-actions { width: 124px; min-width: 124px; max-width: 124px; }
 .sheet-row > .sheet-actions { height: 72px; }
 
+/* Fit every daily-task field, including links and time, into the available width. */
+.task-sheet .responsive-sheet { table-layout: fixed; }
+.task-sheet .sheet-columns th { padding: .4rem .25rem; white-space: normal; overflow-wrap: anywhere; }
+.task-sheet .sheet-columns th > span { min-width: 0; gap: .2rem; }
+.task-sheet .sheet-columns th svg { flex-shrink: 0; width: .75rem; height: .75rem; }
+.task-sheet .sheet-columns th:first-child { width: 28px; }
+.task-sheet .sheet-columns th:nth-child(2) { width: 11%; }
+.task-sheet .sheet-row > td { padding: .3rem .2rem; overflow-wrap: anywhere; }
+.task-sheet .sheet-row > td > input,
+.task-sheet .sheet-row > td > select,
+.task-sheet .sheet-row > td > button { width: 100%; min-width: 0; max-width: 100%; padding-left: .3rem; padding-right: .3rem; }
+.task-sheet .sheet-row > td > button > span { min-width: 0; overflow-wrap: anywhere; }
+.task-sheet .sheet-actions { position: static; width: 76px; min-width: 0; max-width: none; box-shadow: none; }
+.task-sheet .sheet-actions > div { width: 100%; gap: .125rem; }
+.task-sheet .sheet-actions p { overflow-wrap: anywhere; }
+
 /* Phone layouts retain the same fields and row state as the desktop sheets. */
 @media (max-width: 767px) {
   .responsive-sheet { display: block; width: 100%; min-width: 0; border: 0; }
@@ -184,6 +200,7 @@
   .responsive-sheet td > input, .responsive-sheet td > select, .responsive-sheet td > textarea, .responsive-sheet td > button { width: 100%; min-width: 0; max-width: none; }
   .responsive-sheet .sheet-actions { width: auto; min-width: 0; max-width: none; height: auto; }
   .responsive-sheet .sheet-actions > div { width: 100%; }
+  .task-sheet .responsive-sheet .sheet-actions { width: auto; }
   .responsive-sheet .sheet-row > td { border-left: 0; border-right: 0; }
   .responsive-sheet .sheet-row[data-dirty="true"] { border-color: #d97706; }
   .cell-editor-panel { max-height: 45dvh; }

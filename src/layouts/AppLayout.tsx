@@ -13,6 +13,14 @@ export function AppLayout() {
   const { data: profile, isLoading: profileLoading, isError: profileFailed, isFetching, refetch } = useProfile(user?.id)
   const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try { return localStorage.getItem('sidebar-collapsed') === 'true' } catch { return false }
+  })
+  const toggleSidebar = () => {
+    const next = !sidebarCollapsed
+    setSidebarCollapsed(next)
+    try { localStorage.setItem('sidebar-collapsed', String(next)) } catch { /* Keep the toggle usable when storage is unavailable. */ }
+  }
   const [isDark, setIsDark] = useState(() => {
     return document.documentElement.classList.contains('dark')
   })
@@ -56,7 +64,7 @@ export function AppLayout() {
 
   return (
     <div className="app-shell flex h-dvh overflow-hidden">
-      <div className="hidden lg:block shrink-0 h-full"><Sidebar profile={profile ?? null} /></div>
+      <div id="desktop-navigation" className="hidden lg:block shrink-0 h-full"><Sidebar profile={profile ?? null} collapsed={sidebarCollapsed} /></div>
       <Dialog open={menuOpen} onOpenChange={setMenuOpen}>
         <DialogContent className="mobile-navigation left-0 top-0 block h-dvh max-h-dvh w-[min(20rem,calc(100vw-2rem))] max-w-none translate-x-0 translate-y-0 rounded-none border-0 bg-sidebar p-0 sm:p-0 text-sidebar-foreground sm:rounded-none" onClick={event => { if ((event.target as HTMLElement).closest('a')) setMenuOpen(false) }}>
           <DialogTitle className="sr-only">Navigation</DialogTitle>
@@ -71,6 +79,8 @@ export function AppLayout() {
           onToggleDark={toggleDark}
           onOpenMenu={() => setMenuOpen(true)}
           menuOpen={menuOpen}
+          sidebarCollapsed={sidebarCollapsed}
+          onToggleSidebar={toggleSidebar}
         />
         <main className="min-h-0 min-w-0 flex-1 overflow-y-auto bg-background">
           {profileLoading ? (

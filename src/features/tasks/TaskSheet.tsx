@@ -35,17 +35,6 @@ export function TaskSheet({ tasks, profile, workDate, mine }: Props) {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [editorHost, setEditorHost] = useState<HTMLDivElement | null>(null)
   const [selectedCell, setSelectedCell] = useState<string | null>(null)
-  useEffect(() => {
-    const dismissEditor = (event: Event) => {
-      if (!(event.target instanceof Element) || !event.target.closest('[data-cell-editor]')) setSelectedCell(null)
-    }
-    document.addEventListener('pointerdown', dismissEditor)
-    document.addEventListener('focusin', dismissEditor)
-    return () => {
-      document.removeEventListener('pointerdown', dismissEditor)
-      document.removeEventListener('focusin', dismissEditor)
-    }
-  }, [])
   const permissions = usePermissions(profile)
   const people = useQuery({ queryKey: ['assignable-profiles'], queryFn: fetchAssignableProfiles })
   const types = useQuery({ queryKey: ['task-types'], queryFn: fetchTaskTypes })
@@ -58,10 +47,10 @@ export function TaskSheet({ tasks, profile, workDate, mine }: Props) {
     marketing_ad_id: (ads.data ?? []).map(a => ({ id: a.id, label: a.advertiser })),
     status: Object.entries(TASK_STATUS_LABELS).map(([id, label]) => ({ id, label })),
     priority: Object.entries(TASK_PRIORITY_LABELS).map(([id, label]) => ({ id, label })),
-    time_slot: ['', ...TIME_SLOTS].map(id => ({ id, label: slotLabel(id) })),
   }
   return <CellEditorContext.Provider value={{ host: editorHost, selected: selectedCell, select: setSelectedCell }}><div className="task-sheet p-2 sm:p-4 space-y-4">
     <div data-cell-editor className="cell-editor-panel relative w-full max-h-[40vh] overflow-y-auto rounded-lg border border-indigo-200 bg-background p-3 shadow-sm dark:border-indigo-800">
+      {selectedCell && <Button variant="ghost" size="sm" className="mb-2" onClick={() => setSelectedCell(null)}>Close expanded editor</Button>}
       <div ref={setEditorHost} className="empty:hidden" />
     </div>
     {[people, types, channels, ads].some(q => q.isError) && <p role="alert" className="text-destructive">Some dropdown options could not load. Refresh to try again.</p>}
@@ -85,7 +74,7 @@ export function TaskSheet({ tasks, profile, workDate, mine }: Props) {
         </div>
         <div id={contentId} hidden={isCollapsed}>
         {(rows.length || canCreate) ? <div className="overflow-x-auto"><table className="responsive-sheet w-full text-xs">
-          <thead className="sheet-columns"><tr><th scope="col" className="w-10 px-1"><span className="sr-only">Source</span></th>{['File name', 'Type', 'Assigned person', 'Status', 'Channel / Page', 'Marketing ad', 'Remarks', 'Caption', 'YouTube link', 'Facebook link', 'Drive link', 'Priority', 'Time section', 'Actions'].map(label => <th key={label} className={`text-left px-2 py-1.5 whitespace-nowrap font-extrabold ${label === 'Actions' ? 'sheet-actions' : ''}`}><span className="inline-flex items-center gap-1.5">{(label === 'YouTube link' || label === 'Facebook link' || label === 'Drive link') && <PlatformIcon platform={label} />}{label}</span></th>)}</tr></thead>
+          <thead className="sheet-columns"><tr><th scope="col" className="w-10 px-1"><span className="sr-only">Source</span></th>{['File name', 'Type', 'Assigned person', 'Status', 'Channel / Page', 'Marketing ad', 'Remarks', 'Caption', 'YouTube link', 'Facebook link', 'Priority', 'Actions'].map(label => <th key={label} className={`text-left px-2 py-1.5 whitespace-nowrap font-extrabold ${label === 'Actions' ? 'sheet-actions' : ''}`}><span className="inline-flex items-center gap-1.5">{(label === 'YouTube link' || label === 'Facebook link') && <PlatformIcon platform={label} />}{label}</span></th>)}</tr></thead>
           <tbody>{rows.map(task => <SheetRow key={task.id} task={task} slot={slot} profile={profile} workDate={workDate} mine={mine} catalogs={catalogs} editable={permissions.canEditTask(task.assigned_to, task.assigned_profile)} onHistory={() => setHistory(task)} />)}
             {canCreate && <DraftRows key={`${workDate}-${mine}-${profile.id}`} slot={slot} profile={profile} workDate={workDate} mine={mine} catalogs={catalogs} editable />}
           </tbody>
@@ -165,7 +154,7 @@ function SheetRow({ task, slot, profile, workDate, mine, catalogs, editable, onR
       setError(/time_slot/.test(message) ? 'Apply the task_work_time SQL update in Supabase, then retry. Your row has been kept.' : message)
     } finally { setSaving(false) }
   }
-  const fields = ['file_name', 'task_type_id', 'assigned_to', 'status', 'channel_id', 'marketing_ad_id', 'remarks', 'caption', 'youtube_link', 'facebook_link', 'google_drive_link', 'priority', 'time_slot'] as const
+  const fields = ['file_name', 'task_type_id', 'assigned_to', 'status', 'channel_id', 'marketing_ad_id', 'remarks', 'caption', 'youtube_link', 'facebook_link', 'priority'] as const
   return <tr data-status={form.status} data-dirty={dirty} className="sheet-row border-b align-top">
     <td data-label="Source" className="p-1.5"><ContentSourceIcon packageId={task?.source_content_id} /></td>
     {fields.map(field => {
@@ -173,8 +162,8 @@ function SheetRow({ task, slot, profile, workDate, mine, catalogs, editable, onR
       const options = catalogs[field]
       const disabled = !editable || saving || (mine && field === 'assigned_to')
       return <td key={field} data-label={field.replaceAll('_', ' ')} className="p-1.5">
-        {field === 'caption' ? <CaptionEditor value={value} disabled={disabled} onChange={caption => handleChange("caption", caption)} /> : options ? <select data-field={field} data-value={value} aria-label={field.replaceAll('_', ' ')} className={`sheet-select h-9 ${field === 'status' || field === 'time_slot' ? 'w-[120px] min-w-[120px] max-w-[120px]' : field === 'priority' ? 'w-24 min-w-24 max-w-24' : 'min-w-36 max-w-52'} rounded-md border px-2 font-medium disabled:opacity-60`} value={value} disabled={disabled} onChange={e => handleChange(field, e.target.value)}>
-          {field !== 'time_slot' && <option value="">Select…</option>}
+        {field === 'caption' ? <CaptionEditor value={value} disabled={disabled} onChange={caption => handleChange("caption", caption)} /> : options ? <select data-field={field} data-value={value} aria-label={field.replaceAll('_', ' ')} className={`sheet-select h-9 ${field === 'status' ? 'w-[120px] min-w-[120px] max-w-[120px]' : field === 'priority' ? 'w-24 min-w-24 max-w-24' : 'min-w-36 max-w-52'} rounded-md border px-2 font-medium disabled:opacity-60`} value={value} disabled={disabled} onChange={e => handleChange(field, e.target.value)}>
+          <option value="">Select…</option>
           {value && !options.some(o => o.id === value) && <option value={value}>{field === 'assigned_to' ? task?.assigned_profile?.full_name ?? profile.full_name : field === 'task_type_id' ? task?.task_type?.name ?? value : field === 'channel_id' ? task?.channel?.name ?? value : task?.marketing_ad?.advertiser ?? value}</option>}
           {options.map(o => <option key={o.id} value={o.id} disabled={field === 'status' && o.id === 'done' && (!canComplete || !!completionError)}>{o.label}</option>)}
         </select> : <>
