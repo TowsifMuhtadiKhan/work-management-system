@@ -63,7 +63,7 @@ export function AppLayout() {
   if (!user) return null
 
   return (
-    <div className="app-shell flex h-dvh overflow-hidden">
+    <div className="app-shell relative flex h-dvh overflow-hidden">
       <div id="desktop-navigation" className="hidden lg:block shrink-0 h-full"><Sidebar profile={profile ?? null} collapsed={sidebarCollapsed} /></div>
       <Dialog open={menuOpen} onOpenChange={setMenuOpen}>
         <DialogContent className="mobile-navigation left-0 top-0 block h-dvh max-h-dvh w-[min(20rem,calc(100vw-2rem))] max-w-none translate-x-0 translate-y-0 rounded-none border-0 bg-sidebar p-0 sm:p-0 text-sidebar-foreground sm:rounded-none" onClick={event => { if ((event.target as HTMLElement).closest('a')) setMenuOpen(false) }}>
@@ -72,7 +72,7 @@ export function AppLayout() {
           <Sidebar profile={profile ?? null} className="w-full" />
         </DialogContent>
       </Dialog>
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <div className="relative flex-1 flex flex-col min-w-0 overflow-hidden">
         <TopHeader
           profile={profile ?? null}
           isDark={isDark}
@@ -82,7 +82,7 @@ export function AppLayout() {
           sidebarCollapsed={sidebarCollapsed}
           onToggleSidebar={toggleSidebar}
         />
-        <main className="min-h-0 min-w-0 flex-1 overflow-y-auto bg-background">
+        <main className="relative min-h-0 min-w-0 flex-1 overflow-y-auto bg-background">
           {profileLoading ? (
             <div className="p-6 space-y-4" role="status" aria-label="Loading profile">
               <Skeleton className="h-8 w-48" />

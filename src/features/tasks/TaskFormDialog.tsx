@@ -283,7 +283,13 @@ export function TaskFormDialog({
                   <SelectItem value="">None</SelectItem>
                   {channels.map((ch) => (
                     <SelectItem key={ch.id} value={ch.id}>
-                      {ch.name}
+                      <span className="flex items-center gap-2">
+                        <span
+                          className="h-2 w-2 rounded-full inline-block shrink-0"
+                          style={{ background: ch.color_hex || '#3B82F6' }}
+                        />
+                        {ch.name}
+                      </span>
                     </SelectItem>
                   ))}
                 </SelectContent>

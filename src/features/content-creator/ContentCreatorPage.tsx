@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useAuth } from '@/hooks/useAuth'
+import { useProfile } from '@/hooks/useProfile'
 import { fetchAssignableProfiles } from '@/services/profiles.service'
 import { fetchTaskTypes } from '@/services/taskTypes.service'
 import { CONTENT_STATUS_LABELS, fetchContentPackages, fetchContentReviews, reviewContentPackage, saveContentPackage } from '@/services/contentPackages.service'
@@ -21,6 +22,8 @@ const fieldClass = 'w-full rounded-md border bg-background px-3 py-2 text-sm dis
 
 export function ContentCreatorPage() {
   const { user } = useAuth()
+  const profile = useProfile(user?.id)
+  const isLead = ['administrator', 'manager', 'team_lead'].includes(profile.data?.application_role ?? '')
   const [params, setParams] = useSearchParams()
   const people = useQuery({ queryKey: ['assignable-profiles'], queryFn: fetchAssignableProfiles, enabled: !!user })
   const [view, setView] = useState('all')
@@ -50,14 +53,14 @@ export function ContentCreatorPage() {
           <caption className="bg-red-600 px-4 py-3 text-xl font-bold text-white">CONTENT CREATOR PKG LIST</caption>
           <thead className="bg-muted"><tr>{['PKG name', 'Creator name', 'Approver', 'Status', 'Caption', 'Thumb', 'Actions'].map(label => <th scope="col" key={label} className="border px-3 py-2 text-left uppercase">{label}</th>)}</tr></thead>
           <tbody>
-            {user && rows.map(entry => <ContentPackageRow key={entry.id} entry={entry} userId={user.id} people={people.data ?? []} unavailable={query.isError || query.isPending} onDetails={action => setParams({ package: entry.id, ...(action ? { action } : {}) })} />)}
-            {user && <SheetDraftRows>{actions => <ContentPackageRow userId={user.id} people={people.data ?? []} hidden={view === 'review'} unavailable={query.isError || query.isPending || people.isError || people.isPending} {...actions} />}</SheetDraftRows>}
+            {user && rows.map(entry => <ContentPackageRow key={entry.id} entry={entry} userId={user.id} canManage={isLead} people={people.data ?? []} unavailable={query.isError || query.isPending} onDetails={action => setParams({ package: entry.id, ...(action ? { action } : {}) })} />)}
+            {user && <SheetDraftRows>{actions => <ContentPackageRow userId={user.id} canManage={isLead} people={people.data ?? []} hidden={view === 'review'} unavailable={query.isError || query.isPending || people.isError || people.isPending} {...actions} />}</SheetDraftRows>}
           </tbody>
         </table>
       </div>
       {!rows.length && <p className="text-sm text-muted-foreground">{view === 'review' ? 'No packages are waiting for your review.' : 'Start typing in the blank row to create a package.'}</p>}
       {params.has('package') && !selected && <p role="alert">This package is unavailable or you do not have access.</p>}
-    {user && selected && <PackageDialog key={selected.id} entry={selected} requestedAction={params.get('action')} userId={user.id} onClose={close} onSaved={saved} />}
+    {user && selected && <PackageDialog key={selected.id} entry={selected} requestedAction={params.get('action')} userId={user.id} canManage={isLead} onClose={close} onSaved={saved} />}
   </div>
 }
 
@@ -70,16 +73,22 @@ function Thumbnail({ url }: { url: string }) {
   </a>
 }
 
-function PackageDialog({ entry: initialEntry, requestedAction, userId, onClose, onSaved }: { entry?: ContentPackage; requestedAction: string | null; userId: string; onClose: () => void; onSaved: () => void }) {
+function PackageDialog({ entry: initialEntry, requestedAction, userId, canManage, onClose, onSaved }: { entry?: ContentPackage; requestedAction: string | null; userId: string; canManage?: boolean; onClose: () => void; onSaved: () => void }) {
   // Keep the version opened by the user so background refreshes cannot overwrite
   // concurrent edits using a newer version number with stale form values.
   const [entry] = useState(initialEntry)
-  const editable = !entry || (entry.creator_id === userId && ['draft', 'changes_requested'].includes(entry.status))
+  const editable = !entry || ((entry.creator_id === userId || canManage) && ['draft', 'changes_requested'].includes(entry.status))
   const canReview = entry?.approver_id === userId && entry.status === 'submitted'
   const people = useQuery({ queryKey: ['assignable-profiles'], queryFn: fetchAssignableProfiles, enabled: editable || canReview })
   const types = useQuery({ queryKey: ['task-types'], queryFn: fetchTaskTypes, enabled: canReview })
   const reviews = useQuery({ queryKey: ['content-reviews', entry?.id], queryFn: () => fetchContentReviews(entry!.id), enabled: !!entry })
-  const [values, setValues] = useState<PackageValues>({ package_name: entry?.package_name ?? '', approver_id: entry?.approver_id ?? '', caption: entry?.caption ?? '', thumbnail_url: entry?.thumbnail_url ?? '' })
+  const [values, setValues] = useState<PackageValues>({
+    package_name: entry?.package_name ?? '',
+    creator_id: entry?.creator_id ?? userId,
+    approver_id: entry?.approver_id ?? '',
+    caption: entry?.caption ?? '',
+    thumbnail_url: entry?.thumbnail_url ?? '',
+  })
   const [feedback, setFeedback] = useState('')
   const [approval, setApproval] = useState<ApprovalValues>({ work_date: todayISO(), time_slot: '08:00', task_type_id: '', assigned_to: entry?.creator_id ?? '' })
   const [error, setError] = useState('')
@@ -96,6 +105,7 @@ function PackageDialog({ entry: initialEntry, requestedAction, userId, onClose, 
     if (mutation.isPending) return
     if (action === 'draft' || action === 'submit') {
       if (!values.package_name.trim() || !values.approver_id) { setError('Enter a package name and select an approver.'); return }
+      if ((values.creator_id || userId) === values.approver_id) { setError('Creator and approver must be different people.'); return }
       if (values.thumbnail_url.trim()) {
         try { if (!['http:', 'https:'].includes(new URL(values.thumbnail_url.trim()).protocol)) throw new Error() }
         catch { setError('Enter a valid http or https thumbnail URL.'); return }
@@ -111,8 +121,11 @@ function PackageDialog({ entry: initialEntry, requestedAction, userId, onClose, 
       <fieldset disabled={mutation.isPending} className="space-y-4 min-w-0">
         {editable ? <>
           <label className="block space-y-1 text-sm font-medium">PKG name<Input maxLength={300} value={values.package_name} onChange={event => setValues({ ...values, package_name: event.target.value })} /></label>
+          <label className="block space-y-1 text-sm font-medium">Creator<select aria-label="Creator" className={fieldClass} value={values.creator_id || userId} onChange={event => setValues({ ...values, creator_id: event.target.value })}>
+            <option value="">Select creator</option>{(people.data ?? []).map(person => <option key={person.id} value={person.id} disabled={person.id === values.approver_id}>{person.full_name}</option>)}
+          </select></label>
           <label className="block space-y-1 text-sm font-medium">Approver<select aria-label="Approver" className={fieldClass} value={values.approver_id} onChange={event => setValues({ ...values, approver_id: event.target.value })}>
-            <option value="">Select approver</option>{(people.data ?? []).filter(person => person.id !== userId).map(person => <option key={person.id} value={person.id}>{person.full_name}</option>)}
+            <option value="">Select approver</option>{(people.data ?? []).filter(person => person.id !== (values.creator_id || userId)).map(person => <option key={person.id} value={person.id}>{person.full_name}</option>)}
           </select></label>
           <label className="block space-y-1 text-sm font-medium">Caption<textarea aria-label="Caption" className={fieldClass} rows={5} value={values.caption} onChange={event => setValues({ ...values, caption: event.target.value })} /></label>
           <label className="block space-y-1 text-sm font-medium">Thumbnail URL<Input type="url" placeholder="https://…" value={values.thumbnail_url} onChange={event => setValues({ ...values, thumbnail_url: event.target.value })} /></label>

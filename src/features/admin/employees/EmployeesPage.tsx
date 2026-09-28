@@ -1,4 +1,4 @@
-﻿import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { Plus, Pencil, ShieldCheck, Users, Search } from 'lucide-react'
@@ -17,6 +17,7 @@ import { APP_ROLE_LABELS } from '@/types/enums'
 import type { AppRole } from '@/types/enums'
 import type { Profile, Department } from '@/types/entities'
 import { errorMessage } from '../adminConfig'
+import { Pagination } from '@/components/common/Pagination'
 import { useAdministrationReady } from '../useAdministrationReady'
 
 const selectClass = 'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm'
@@ -27,12 +28,20 @@ export function EmployeesPage() {
   const ready = useAdministrationReady()
   const [search, setSearch] = useState('')
   const [role, setRole] = useState('all')
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
   const [editing, setEditing] = useState<Profile | null>(null)
   const [adding, setAdding] = useState(false)
   const profiles = useQuery({ queryKey: ['admin-profiles'], queryFn: fetchAllProfilesAdmin })
   const departments = useQuery({ queryKey: ['departments'], queryFn: fetchDepartments })
   const people = profiles.data ?? []
   const visible = people.filter(p => (role === 'all' || p.application_role === role) && `${p.full_name} ${p.email} ${p.employee_code ?? ''}`.toLowerCase().includes(search.toLowerCase()))
+  const paginatedEmployees = visible.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [role, search])
+
   const saved = () => { setEditing(null); void client.invalidateQueries() }
   return <div className="p-3 sm:p-6 space-y-6">
     <div className="flex flex-wrap items-center justify-between gap-4">
@@ -56,18 +65,29 @@ export function EmployeesPage() {
       <Button variant="outline" disabled={profiles.isFetching} onClick={() => void profiles.refetch()}>Refresh list</Button>
     </div>
     {profiles.isPending ? <p role="status">Loading employees...</p> : profiles.isError ? <div role="alert"><p className="text-destructive">{errorMessage(profiles.error)}</p><Button variant="outline" onClick={() => void profiles.refetch()}>Try again</Button></div> :
-      <div className="rounded-lg border bg-card overflow-x-auto"><Table>
-        <TableHeader><TableRow>{['Employee', 'Code', 'Designation', 'Department', 'Manager', 'Role', 'Status', 'Actions'].map(label => <TableHead key={label}>{label}</TableHead>)}</TableRow></TableHeader>
-        <TableBody>
-          {!visible.length && <TableRow><TableCell colSpan={8} className="py-10 text-center text-muted-foreground">No employees match these filters.</TableCell></TableRow>}
-          {visible.map(p => <TableRow key={p.id}>
-            <TableCell><p className="font-medium">{p.full_name}{p.id === user?.id && ' (you)'}</p><p className="text-xs text-muted-foreground">{p.email}</p></TableCell>
-            <TableCell>{p.employee_code ?? '—'}</TableCell><TableCell>{p.designation ?? '—'}</TableCell><TableCell>{p.department?.name ?? '—'}</TableCell><TableCell>{p.manager?.full_name ?? '—'}</TableCell>
-            <TableCell><Badge variant={p.application_role === 'administrator' ? 'default' : 'secondary'}>{APP_ROLE_LABELS[p.application_role]}</Badge></TableCell>
-            <TableCell>{p.is_active ? 'Active' : 'Inactive'}</TableCell><TableCell><Button disabled={!ready.data} size="sm" variant="outline" onClick={() => setEditing(p)}><Pencil className="mr-2 h-3 w-3" />Edit</Button></TableCell>
-          </TableRow>)}
-        </TableBody>
-      </Table></div>}
+      <div className="space-y-3">
+        <div className="rounded-lg border bg-card overflow-x-auto"><Table>
+          <TableHeader><TableRow>{['Employee', 'Code', 'Designation', 'Department', 'Manager', 'Role', 'Status', 'Actions'].map(label => <TableHead key={label}>{label}</TableHead>)}</TableRow></TableHeader>
+          <TableBody>
+            {!visible.length && <TableRow><TableCell colSpan={8} className="py-10 text-center text-muted-foreground">No employees match these filters.</TableCell></TableRow>}
+            {paginatedEmployees.map(p => <TableRow key={p.id}>
+              <TableCell><p className="font-medium">{p.full_name}{p.id === user?.id && ' (you)'}</p><p className="text-xs text-muted-foreground">{p.email}</p></TableCell>
+              <TableCell>{p.employee_code ?? '—'}</TableCell><TableCell>{p.designation ?? '—'}</TableCell><TableCell>{p.department?.name ?? '—'}</TableCell><TableCell>{p.manager?.full_name ?? '—'}</TableCell>
+              <TableCell><Badge variant={p.application_role === 'administrator' ? 'default' : 'secondary'}>{APP_ROLE_LABELS[p.application_role]}</Badge></TableCell>
+              <TableCell>{p.is_active ? 'Active' : 'Inactive'}</TableCell><TableCell><Button disabled={!ready.data} size="sm" variant="outline" onClick={() => setEditing(p)}><Pencil className="mr-2 h-3 w-3" />Edit</Button></TableCell>
+            </TableRow>)}
+          </TableBody>
+        </Table></div>
+        {visible.length > 0 && (
+          <Pagination
+            currentPage={currentPage}
+            totalItems={visible.length}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={setPageSize}
+          />
+        )}
+      </div>}
     {adding && <AddEmployee onClose={() => setAdding(false)} onAdded={() => void client.invalidateQueries()} existing={people} />}
     {editing && <EmployeeEditor key={editing.id} profile={editing} people={people} departments={departments.data ?? []} departmentsReady={departments.isSuccess} currentId={user?.id} onClose={() => setEditing(null)} onSaved={saved} />}
   </div>
@@ -76,6 +96,7 @@ export function EmployeesPage() {
 function AddEmployee({ onClose, onAdded, existing }: { onClose: () => void; onAdded: () => void; existing: Profile[] }) {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
+  const [designation, setDesignation] = useState('')
   const [password, setPassword] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -88,7 +109,7 @@ function AddEmployee({ onClose, onAdded, existing }: { onClose: () => void; onAd
     if (existing.some(p => p.email.toLowerCase() === email.trim().toLowerCase())) { setError('This employee already exists. Close this form and edit their account instead.'); return }
     setSaving(true)
     try {
-      const data = await registerEmployee(name, email, password)
+      const data = await registerEmployee(name, email, password, designation)
       setPassword('')
       setResult(data.needsConfirmation
         ? 'Registration submitted. If this email is new, the employee will receive a confirmation link. After confirmation they can sign in. Refresh the employee list to assign their department and role.'
@@ -103,6 +124,7 @@ function AddEmployee({ onClose, onAdded, existing }: { onClose: () => void; onAd
       <fieldset disabled={saving} className="space-y-4">
         <div className="space-y-1.5"><Label htmlFor="new-name">Full name</Label><Input id="new-name" required value={name} onChange={e => setName(e.target.value)} /></div>
         <div className="space-y-1.5"><Label htmlFor="new-email">Email address</Label><Input id="new-email" type="email" required value={email} onChange={e => setEmail(e.target.value)} /></div>
+        <div className="space-y-1.5"><Label htmlFor="new-designation">Designation</Label><Input id="new-designation" placeholder="e.g. Senior Content Producer" value={designation} onChange={e => setDesignation(e.target.value)} /></div>
         <div className="space-y-1.5"><Label htmlFor="new-password">Initial password</Label><Input id="new-password" type="password" minLength={8} required autoComplete="new-password" value={password} onChange={e => setPassword(e.target.value)} /><p className="text-xs text-muted-foreground">At least 8 characters. Share it privately with the employee.</p></div>
       </fieldset>
       <p className="text-xs text-muted-foreground">Alternatively, ask the employee to create their own account at <span className="break-all">{window.location.origin}/signup</span>. New accounts always start as employees.</p>

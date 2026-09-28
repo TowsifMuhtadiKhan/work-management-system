@@ -14,6 +14,16 @@ import { fetchChannels } from '@/services/channels.service'
 import { fetchMarketingAds } from '@/services/marketingAds.service'
 import { createTask, updateTask, deleteTask, markTaskDone } from '@/services/tasks.service'
 import { usePermissions } from '@/hooks/usePermissions'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { TASK_STATUS_LABELS, TASK_PRIORITY_LABELS } from '@/types/enums'
 import type { Task, Profile } from '@/types/entities'
 import type { DbTaskInsert } from '@/types/database'
@@ -22,7 +32,7 @@ import { TIME_SLOTS, slotLabel } from './timeSlots'
 import { CaptionEditor } from './CaptionEditor'
 import { ContentSourceIcon } from '@/components/common/ContentSourceIcon'
 
-type Option = { id: string; label: string }
+type Option = { id: string; label: string; color?: string | null }
 type Props = { tasks: Task[]; profile: Profile; workDate: string; mine: boolean }
 const CellEditorContext = createContext<{
   host: HTMLDivElement | null;
@@ -31,7 +41,10 @@ const CellEditorContext = createContext<{
 }>({ host: null, selected: null, select: () => {} })
 
 export function TaskSheet({ tasks, profile, workDate, mine }: Props) {
+  const queryClient = useQueryClient()
   const [history, setHistory] = useState<Task | null>(null)
+  const [deletingTask, setDeletingTask] = useState<Task | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [editorHost, setEditorHost] = useState<HTMLDivElement | null>(null)
   const [selectedCell, setSelectedCell] = useState<string | null>(null)
@@ -42,8 +55,8 @@ export function TaskSheet({ tasks, profile, workDate, mine }: Props) {
   const ads = useQuery({ queryKey: ['marketing-ads'], queryFn: fetchMarketingAds })
   const catalogs = {
     assigned_to: (people.data ?? []).map(p => ({ id: p.id, label: p.full_name })),
-    task_type_id: (types.data ?? []).map(t => ({ id: t.id, label: t.name })),
-    channel_id: (channels.data ?? []).map(c => ({ id: c.id, label: c.name })),
+    task_type_id: (types.data ?? []).map(t => ({ id: t.id, label: t.name, color: t.color_hex })),
+    channel_id: (channels.data ?? []).map(c => ({ id: c.id, label: c.name, color: c.color_hex })),
     marketing_ad_id: (ads.data ?? []).map(a => ({ id: a.id, label: a.advertiser })),
     status: Object.entries(TASK_STATUS_LABELS).map(([id, label]) => ({ id, label })),
     priority: Object.entries(TASK_PRIORITY_LABELS).map(([id, label]) => ({ id, label })),
@@ -75,7 +88,7 @@ export function TaskSheet({ tasks, profile, workDate, mine }: Props) {
         <div id={contentId} hidden={isCollapsed}>
         {(rows.length || canCreate) ? <div className="overflow-x-auto"><table className="responsive-sheet w-full text-xs">
           <thead className="sheet-columns"><tr><th scope="col" className="w-10 px-1"><span className="sr-only">Source</span></th>{['File name', 'Type', 'Assigned person', 'Status', 'Channel / Page', 'Marketing ad', 'Remarks', 'Caption', 'YouTube link', 'Facebook link', 'Priority', 'Actions'].map(label => <th key={label} className={`text-left px-2 py-1.5 whitespace-nowrap font-extrabold ${label === 'Actions' ? 'sheet-actions' : ''}`}><span className="inline-flex items-center gap-1.5">{(label === 'YouTube link' || label === 'Facebook link') && <PlatformIcon platform={label} />}{label}</span></th>)}</tr></thead>
-          <tbody>{rows.map(task => <SheetRow key={task.id} task={task} slot={slot} profile={profile} workDate={workDate} mine={mine} catalogs={catalogs} editable={permissions.canEditTask(task.assigned_to, task.assigned_profile)} onHistory={() => setHistory(task)} />)}
+          <tbody>{rows.map(task => <SheetRow key={task.id} task={task} slot={slot} profile={profile} workDate={workDate} mine={mine} catalogs={catalogs} editable={permissions.canEditTask(task.assigned_to, task.assigned_profile)} onHistory={() => setHistory(task)} onDelete={() => setDeletingTask(task)} />)}
             {canCreate && <DraftRows key={`${workDate}-${mine}-${profile.id}`} slot={slot} profile={profile} workDate={workDate} mine={mine} catalogs={catalogs} editable />}
           </tbody>
         </table></div> : <p className="px-4 py-3 text-xs text-muted-foreground">No tasks in this section.</p>}
@@ -83,12 +96,50 @@ export function TaskSheet({ tasks, profile, workDate, mine }: Props) {
       </section>
     })}
     {history && <TaskHistoryDrawer task={history} open onClose={() => setHistory(null)} />}
+    <AlertDialog open={!!deletingTask} onOpenChange={open => { if (!open && !isDeleting) setDeletingTask(null) }}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete Task</AlertDialogTitle>
+          <AlertDialogDescription>
+            Are you sure you want to delete <span className="font-semibold text-foreground">"{deletingTask?.file_name}"</span>? This action cannot be undone.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            disabled={isDeleting}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            onClick={async (e) => {
+              e.preventDefault()
+              if (!deletingTask || isDeleting) return
+              setIsDeleting(true)
+              try {
+                await deleteTask(deletingTask.id)
+                await queryClient.invalidateQueries({ queryKey: ['tasks'] })
+                await queryClient.invalidateQueries({ queryKey: ['daily-stats'] })
+                await queryClient.invalidateQueries({ queryKey: ['tasks-by-employee'] })
+                toast.success(`Task "${deletingTask.file_name}" deleted`)
+                setDeletingTask(null)
+              } catch {
+                toast.error('Unable to delete task. Please try again.')
+              } finally {
+                setIsDeleting(false)
+              }
+            }}
+          >
+            {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            Delete
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   </div></CellEditorContext.Provider>
 }
 
 type RowProps = {
   task?: Task; slot: string; profile: Profile; workDate: string; mine: boolean;
   catalogs: Record<string, Option[]>; editable: boolean; onRemove?: () => void; onHistory?: () => void; onStartEditing?: () => void;
+  onDelete?: () => void;
 }
 
 function DraftRows(props: RowProps) {
@@ -108,7 +159,7 @@ function DraftRows(props: RowProps) {
   />)}</>
 }
 
-function SheetRow({ task, slot, profile, workDate, mine, catalogs, editable, onRemove, onHistory, onStartEditing }: RowProps) {
+function SheetRow({ task, slot, profile, workDate, mine, catalogs, editable, onRemove, onHistory, onStartEditing, onDelete }: RowProps) {
   const cellEditor = useContext(CellEditorContext)
   const rowId = useId()
   const [focusedField, setFocusedField] = useState<string>('file_name')
@@ -135,12 +186,16 @@ function SheetRow({ task, slot, profile, workDate, mine, catalogs, editable, onR
   const refresh = async () => {
     await Promise.all(['tasks', 'daily-stats', 'tasks-by-employee', 'marketing-progress', 'task-history'].map(key => queryClient.invalidateQueries({ queryKey: [key] })))
   }
+  const notifyError = (msg: string) => {
+    setError(msg)
+    toast.error(msg)
+  }
   const save = async () => {
-    if (!form.file_name.trim() || !form.task_type_id || !form.assigned_to) { setError('Enter file name, type, and assigned person.'); return }
-    if (form.status === 'done' && completionError) { setError(completionError); return }
+    if (!form.file_name.trim() || !form.task_type_id || !form.assigned_to) { notifyError('Enter file name, type, and assigned person.'); return }
+    if (form.status === 'done' && completionError) { notifyError(completionError); return }
     for (const key of ['youtube_link', 'facebook_link', 'google_drive_link'] as const) {
       const value = form[key]?.trim()
-      if (value) { try { if (!['http:', 'https:'].includes(new URL(value).protocol)) throw new Error() } catch { setError('Links must be valid http or https URLs.'); return } }
+      if (value) { try { if (!['http:', 'https:'].includes(new URL(value).protocol)) throw new Error() } catch { notifyError('Links must be valid http or https URLs.'); return } }
     }
     setSaving(true); setError('')
     try {
@@ -151,7 +206,7 @@ function SheetRow({ task, slot, profile, workDate, mine, catalogs, editable, onR
       await refresh(); setChanges({}); onRemove?.(); toast.success('Row saved')
     } catch (e) {
       const message = e && typeof e === 'object' && 'message' in e ? String(e.message) : 'Unable to save row'
-      setError(/time_slot/.test(message) ? 'Apply the task_work_time SQL update in Supabase, then retry. Your row has been kept.' : message)
+      notifyError(/time_slot/.test(message) ? 'Apply the task_work_time SQL update in Supabase, then retry. Your row has been kept.' : message)
     } finally { setSaving(false) }
   }
   const fields = ['file_name', 'task_type_id', 'assigned_to', 'status', 'channel_id', 'marketing_ad_id', 'remarks', 'caption', 'youtube_link', 'facebook_link', 'priority'] as const
@@ -161,11 +216,19 @@ function SheetRow({ task, slot, profile, workDate, mine, catalogs, editable, onR
       const value = String(form[field] ?? '')
       const options = catalogs[field]
       const disabled = !editable || saving || (mine && field === 'assigned_to')
+      const selectedOption = options?.find(o => o.id === value)
+      const fieldColor = (field === 'task_type_id' || field === 'channel_id') ? (selectedOption?.color || (field === 'task_type_id' ? task?.task_type?.color_hex : task?.channel?.color_hex)) : null
+      const colorStyle = fieldColor ? {
+        backgroundColor: `${fieldColor}18`,
+        borderColor: `${fieldColor}88`,
+        color: fieldColor,
+        fontWeight: 600,
+      } : undefined
       return <td key={field} data-label={field.replaceAll('_', ' ')} className="p-1.5">
-        {field === 'caption' ? <CaptionEditor value={value} disabled={disabled} onChange={caption => handleChange("caption", caption)} /> : options ? <select data-field={field} data-value={value} aria-label={field.replaceAll('_', ' ')} className={`sheet-select h-9 ${field === 'status' ? 'w-[120px] min-w-[120px] max-w-[120px]' : field === 'priority' ? 'w-24 min-w-24 max-w-24' : 'min-w-36 max-w-52'} rounded-md border px-2 font-medium disabled:opacity-60`} value={value} disabled={disabled} onChange={e => handleChange(field, e.target.value)}>
+        {field === 'caption' ? <CaptionEditor value={value} disabled={disabled} onChange={caption => handleChange("caption", caption)} /> : options ? <select data-field={field} data-value={value} aria-label={field.replaceAll('_', ' ')} style={colorStyle} className={`sheet-select h-9 ${field === 'status' ? 'w-[120px] min-w-[120px] max-w-[120px]' : field === 'priority' ? 'w-24 min-w-24 max-w-24' : 'min-w-36 max-w-52'} rounded-md border px-2 font-medium disabled:opacity-60`} value={value} disabled={disabled} onChange={e => handleChange(field, e.target.value)}>
           <option value="">Select…</option>
           {value && !options.some(o => o.id === value) && <option value={value}>{field === 'assigned_to' ? task?.assigned_profile?.full_name ?? profile.full_name : field === 'task_type_id' ? task?.task_type?.name ?? value : field === 'channel_id' ? task?.channel?.name ?? value : task?.marketing_ad?.advertiser ?? value}</option>}
-          {options.map(o => <option key={o.id} value={o.id} disabled={field === 'status' && o.id === 'done' && (!canComplete || !!completionError)}>{o.label}</option>)}
+          {options.map(o => <option key={o.id} value={o.id} style={o.color ? { color: o.color, fontWeight: 600 } : undefined} disabled={field === 'status' && o.id === 'done' && (!canComplete || !!completionError)}>{o.label}</option>)}
         </select> : <>
           <Input data-cell-editor={disabled ? undefined : true} aria-label={field.replaceAll('_', ' ')} title={value} className={`${field === 'file_name' ? 'min-w-64' : 'min-w-48'} text-xs ${cellEditor.selected === rowId && focusedField === field ? 'ring-2 ring-indigo-500 bg-indigo-50 dark:bg-indigo-950/30' : ''}`} value={value} readOnly={disabled} onFocus={() => { if (!disabled) { setFocusedField(field); cellEditor.select(rowId) } }} onChange={e => handleChange(field, e.target.value)} />
           {cellEditor.host && cellEditor.selected === rowId && focusedField === field && createPortal(<div className="space-y-2">
@@ -176,21 +239,48 @@ function SheetRow({ task, slot, profile, workDate, mine, catalogs, editable, onR
       </td>
     })}
     <td data-label="Actions" className="sheet-actions p-2"><div className="flex w-[108px] flex-wrap items-center gap-1 [&>*]:shrink-0">
-      {task && canComplete && task.status !== 'done' && <Button size="icon" aria-label="Mark as done" className="h-8 w-8 bg-emerald-700 hover:bg-emerald-800 text-white" disabled={saving || dirty || !!completionError} title={completionError ?? (dirty ? 'Save or cancel row edits before marking done' : 'Complete your assigned task')} onClick={async () => {
-        setSaving(true); setError('')
-        try { await markTaskDone(task.id, profile.id); await refresh(); toast.success('Task marked as done') }
-        catch { setError('Unable to mark done. The task may have been reassigned. Refresh and try again.') }
-        finally { setSaving(false) }
-      }}><Check className="h-4 w-4" aria-hidden="true" /></Button>}
+      {task && canComplete && task.status !== 'done' && (
+        <span
+          className="inline-flex cursor-pointer"
+          onClick={() => {
+            if (dirty) toast.warning('Save or cancel row edits before marking done.')
+            else if (completionError) toast.error(completionError)
+          }}
+        >
+          <Button
+            size="icon"
+            aria-label="Mark as done"
+            className="h-8 w-8 bg-emerald-700 hover:bg-emerald-800 text-white disabled:pointer-events-none"
+            disabled={saving || dirty || !!completionError}
+            title={completionError ?? (dirty ? 'Save or cancel row edits before marking done' : 'Complete your assigned task')}
+            onClick={async () => {
+              setSaving(true); setError('')
+              try { await markTaskDone(task.id, profile.id); await refresh(); toast.success('Task marked as done') }
+              catch { notifyError('Unable to mark done. The task may have been reassigned. Refresh and try again.') }
+              finally { setSaving(false) }
+            }}
+          >
+            <Check className="h-4 w-4" aria-hidden="true" />
+          </Button>
+        </span>
+      )}
       {task?.status === 'done' && <span role="img" aria-label="Done" title="Done" className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-emerald-700 text-white"><Check className="h-4 w-4" aria-hidden="true" /></span>}
       {editable && (dirty || !task) && <Button className="h-6 w-6 bg-emerald-700 hover:bg-emerald-800 text-white" size="icon" aria-label="Save" title="Save changes" disabled={saving || !dirty} onClick={() => void save()}>{saving ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /> : <Save className="h-3 w-3" aria-hidden="true" />}</Button>}
       {(dirty || !task) && <Button size="icon" className="h-6 w-6 text-muted-foreground" aria-label="Cancel" title="Discard changes" variant="ghost" disabled={saving || !dirty} onClick={() => { setChanges({}); setError(''); onRemove?.() }}><X className="h-3 w-3" aria-hidden="true" /></Button>}
       {task && <Button size="icon" className="h-8 w-8 text-indigo-600 hover:text-indigo-700 dark:text-indigo-300" variant="ghost" title="History" aria-label="History" onClick={onHistory}><History className="h-4 w-4" aria-hidden="true" /></Button>}
-      {task && !task.source_content_id && profile.application_role === 'administrator' && <Button size="icon" className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-950/40" variant="ghost" title="Delete" aria-label="Delete" disabled={saving} onClick={async () => {
-        if (!window.confirm(`Delete "${task.file_name}"?`)) return
-        setSaving(true)
-        try { await deleteTask(task.id); await refresh() } catch { setError('Unable to delete row') } finally { setSaving(false) }
-      }}><Trash2 className="h-4 w-4" aria-hidden="true" /></Button>}
-    </div>{dirty && <p className="text-amber-700 dark:text-amber-300 text-[10px] font-semibold mt-1">Unsaved changes</p>}{error && <p role="alert" className="text-destructive text-xs mt-2 max-w-64">{error}</p>}</td>
+      {task && !task.source_content_id && profile.application_role === 'administrator' && (
+        <Button
+          size="icon"
+          className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-950/40"
+          variant="ghost"
+          title="Delete"
+          aria-label="Delete"
+          disabled={saving}
+          onClick={onDelete}
+        >
+          <Trash2 className="h-4 w-4" aria-hidden="true" />
+        </Button>
+      )}
+    </div>{dirty && <p className="text-amber-700 dark:text-amber-300 text-[10px] font-semibold mt-1">Unsaved changes</p>}{error && <p role="alert" className="sr-only">{error}</p>}</td>
   </tr>
 }

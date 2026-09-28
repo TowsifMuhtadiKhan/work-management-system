@@ -10,24 +10,32 @@ import { CONTENT_STATUS_LABELS, saveContentPackage, type ContentPackage, type Co
 interface Props extends Partial<DraftRowActions> {
   entry?: ContentPackage
   userId: string
+  canManage?: boolean
   people: { id: string; full_name: string }[]
   unavailable: boolean
   hidden?: boolean
   onDetails?: (action?: ContentStatus) => void
 }
 
-export function ContentPackageRow({ entry, userId, people, unavailable, hidden, onDetails, onStartEditing, onRemove }: Props) {
+export function ContentPackageRow({ entry, userId, canManage, people, unavailable, hidden, onDetails, onStartEditing, onRemove }: Props) {
   const client = useQueryClient()
   const [changes, setChanges] = useState<Partial<PackageValues>>({})
   const [base, setBase] = useState<ContentPackage>()
   const [error, setError] = useState('')
   const [statusChange, setStatusChange] = useState<ContentStatus>()
   const original = base ?? entry
-  const values: PackageValues = { package_name: original?.package_name ?? '', approver_id: original?.approver_id ?? '', caption: original?.caption ?? '', thumbnail_url: original?.thumbnail_url ?? '', ...changes }
+  const values: PackageValues = {
+    package_name: original?.package_name ?? '',
+    creator_id: original?.creator_id ?? userId,
+    approver_id: original?.approver_id ?? '',
+    caption: original?.caption ?? '',
+    thumbnail_url: original?.thumbnail_url ?? '',
+    ...changes,
+  }
   const dirty = Object.keys(changes).length > 0 || statusChange !== undefined
   const status = statusChange ?? entry?.status ?? 'draft'
   const canReview = entry?.approver_id === userId && entry.status === 'submitted'
-  const editable = !entry || (entry.creator_id === userId && ['draft', 'changes_requested'].includes(entry.status))
+  const editable = !entry || ((entry.creator_id === userId || canManage) && ['draft', 'changes_requested'].includes(entry.status))
   const change = (field: keyof PackageValues, value: string) => {
     setBase(current => current ?? entry)
     setChanges(current => ({ ...current, [field]: value }))
@@ -52,6 +60,7 @@ export function ContentPackageRow({ entry, userId, people, unavailable, hidden, 
   const save = (submit: boolean) => {
     setError('')
     if (!values.package_name.trim() || !values.approver_id) { setError('Enter a package name and select an approver.'); return }
+    if ((values.creator_id || userId) === values.approver_id) { setError('Creator and approver must be different people.'); return }
     if (values.thumbnail_url.trim()) {
       try { if (!['http:', 'https:'].includes(new URL(values.thumbnail_url.trim()).protocol)) throw new Error() }
       catch { setError('Enter a valid http or https thumbnail URL.'); return }
@@ -61,10 +70,29 @@ export function ContentPackageRow({ entry, userId, people, unavailable, hidden, 
   const disabled = mutation.isPending || !editable
   return <tr hidden={hidden} className="align-top border-b">
     <td data-label="PKG name" className="border p-1.5"><Input aria-label="PKG name" maxLength={300} value={values.package_name} readOnly={!editable} disabled={mutation.isPending} onChange={event => change('package_name', event.target.value)} /></td>
-    <td data-label="Creator name" className="border p-1.5"><p className="px-1 py-2 text-sm">{entry?.creator?.full_name ?? people.find(person => person.id === userId)?.full_name ?? 'You'}</p></td>
+    <td data-label="Creator name" className="border p-1.5">
+      {editable ? (
+        <select
+          aria-label="Creator name"
+          className="w-full rounded-md border bg-background px-2 py-2 text-xs"
+          value={values.creator_id || userId}
+          disabled={disabled}
+          onChange={event => change('creator_id', event.target.value)}
+        >
+          <option value="">Select creator</option>
+          {people.map(person => (
+            <option key={person.id} value={person.id} disabled={person.id === values.approver_id}>
+              {person.full_name}
+            </option>
+          ))}
+        </select>
+      ) : (
+        <p className="px-1 py-2 text-sm">{entry?.creator?.full_name ?? people.find(person => person.id === (entry?.creator_id ?? userId))?.full_name ?? 'You'}</p>
+      )}
+    </td>
     <td data-label="Approver" className="border p-1.5">
       {editable ? <select aria-label="Approver" className="w-full rounded-md border bg-background px-2 py-2 text-xs" value={values.approver_id} disabled={disabled} onChange={event => change('approver_id', event.target.value)}>
-        <option value="">Select approver</option>{people.filter(person => person.id !== userId).map(person => <option key={person.id} value={person.id}>{person.full_name}</option>)}
+        <option value="">Select approver</option>{people.filter(person => person.id !== (values.creator_id || userId)).map(person => <option key={person.id} value={person.id}>{person.full_name}</option>)}
       </select> : <p className="px-1 py-2 text-sm">{entry?.approver?.full_name ?? 'Selected approver'}</p>}
     </td>
     <td data-label="Status" className="border p-1.5">

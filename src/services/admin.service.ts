@@ -10,7 +10,7 @@ export async function saveEmployee(id: string, changes: DbProfileUpdate) {
   if (error) throw error
 }
 
-export async function registerEmployee(fullName: string, email: string, password: string) {
+export async function registerEmployee(fullName: string, email: string, password: string, designation?: string) {
   const { data: admin, error: permissionError } = await supabase.rpc('is_admin')
   if (permissionError) throw permissionError
   if (!admin) throw new Error('Only an active administrator can add employees here.')
@@ -19,10 +19,24 @@ export async function registerEmployee(fullName: string, email: string, password
   const registration = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storageKey: 'employee-registration' },
   })
+  const trimmedDesignation = designation?.trim()
   const { data, error } = await registration.auth.signUp({
     email: email.trim(), password,
-    options: { data: { full_name: fullName.trim() }, emailRedirectTo: `${window.location.origin}/dashboard` },
+    options: {
+      data: {
+        full_name: fullName.trim(),
+        ...(trimmedDesignation ? { designation: trimmedDesignation } : {}),
+      },
+      emailRedirectTo: `${window.location.origin}/dashboard`,
+    },
   })
   if (error) throw error
+  if (data?.user?.id && trimmedDesignation) {
+    try {
+      await saveEmployee(data.user.id, { designation: trimmedDesignation })
+    } catch {
+      // Best-effort in case database administration RPC is pending
+    }
+  }
   return { needsConfirmation: !data.session }
 }

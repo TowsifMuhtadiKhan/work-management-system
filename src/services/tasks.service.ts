@@ -180,3 +180,26 @@ export async function fetchTasksByEmployee(workDate: string) {
   if (error) throw error
   return data ?? []
 }
+
+// ─── Fetch tasks for a specific marketing ad with date range ──────────────────
+
+export async function fetchMarketingTasks(
+  marketingAdId: string,
+  startDate?: string,
+  endDate?: string
+): Promise<Task[]> {
+  let query = supabase.from('tasks').select(TASK_SELECT).eq('marketing_ad_id', marketingAdId)
+
+  if (startDate) {
+    query = query.gte('work_date', startDate)
+  }
+  if (endDate) {
+    query = query.lte('work_date', endDate)
+  }
+
+  query = query.order('work_date', { ascending: false }).order('created_at', { ascending: false })
+
+  const { data, error } = await query
+  if (error) throw error
+  return (data ?? []) as Task[]
+}

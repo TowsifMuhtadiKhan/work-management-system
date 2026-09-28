@@ -28,7 +28,11 @@ export const catalogConfig: Record<Catalog, CatalogConfig> = {
   channels: {
     title: 'Channels', singular: 'Channel', sort: 'name',
     description: 'Manage publishing destinations such as YouTube, Facebook, and television.',
-    fields: [{ key: 'name', label: 'Name', required: true }, { key: 'platform', label: 'Platform', required: true }],
+    fields: [
+      { key: 'name', label: 'Name', required: true },
+      { key: 'platform', label: 'Platform', required: true },
+      { key: 'color_hex', label: 'Color', type: 'color' },
+    ],
   },
   marketing_ads: {
     title: 'Marketing Ads', singular: 'Marketing Ad', sort: 'advertiser',

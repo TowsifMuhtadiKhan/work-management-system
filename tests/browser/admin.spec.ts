@@ -7,7 +7,7 @@ const hostname = new URL(env.VITE_SUPABASE_URL).hostname
 const adminId = '10000000-0000-0000-0000-000000000001'
 const employeeId = '10000000-0000-0000-0000-000000000002'
 
-async function mockApp(page: Page, { role = 'administrator', ready = true } = {}) {
+export async function mockApp(page: Page, { role = 'administrator', ready = true } = {}) {
   const user = { id: adminId, email: 'admin@example.test', aud: 'authenticated', role: 'authenticated', app_metadata: {}, user_metadata: {} }
   const token = `${Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url')}.${Buffer.from(JSON.stringify({ sub: adminId, exp: Math.floor(Date.now() / 1000) + 3600, role: 'authenticated' })).toString('base64url')}.test`
   await page.addInitScript(({ storageKey, session }) => localStorage.setItem(storageKey, JSON.stringify(session)), {

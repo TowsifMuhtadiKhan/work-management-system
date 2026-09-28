@@ -30,7 +30,9 @@ export interface ContentReview {
   created_at: string
   reviewer?: { full_name: string } | null
 }
-export type PackageValues = Pick<ContentPackage, 'package_name' | 'approver_id' | 'caption' | 'thumbnail_url'>
+export type PackageValues = Pick<ContentPackage, 'package_name' | 'approver_id' | 'caption' | 'thumbnail_url'> & {
+  creator_id?: string
+}
 export type ApprovalValues = Pick<ContentPackage, 'work_date' | 'time_slot' | 'task_type_id' | 'assigned_to'>
 
 const SELECT = '*, creator:profiles!content_packages_creator_id_fkey(full_name), approver:profiles!content_packages_approver_id_fkey(full_name)'
@@ -45,11 +47,18 @@ export async function fetchContentReviews(packageId: string): Promise<ContentRev
   if (error) throw error
   return data ?? []
 }
-export async function saveContentPackage(values: PackageValues, creatorId: string, submit: boolean, entry?: ContentPackage) {
-  const payload = { ...values, package_name: values.package_name.trim(), thumbnail_url: values.thumbnail_url.trim(), status: submit ? 'submitted' : entry?.status ?? 'draft' }
+export async function saveContentPackage(values: PackageValues, defaultCreatorId: string, submit: boolean, entry?: ContentPackage) {
+  const creatorId = values.creator_id || entry?.creator_id || defaultCreatorId
+  const payload = {
+    ...values,
+    creator_id: creatorId,
+    package_name: values.package_name.trim(),
+    thumbnail_url: values.thumbnail_url.trim(),
+    status: submit ? 'submitted' : entry?.status ?? 'draft',
+  }
   const query = entry
     ? supabase.from('content_packages').update(payload).eq('id', entry.id).eq('status', entry.status).eq('updated_at', entry.updated_at)
-    : supabase.from('content_packages').insert({ ...payload, creator_id: creatorId })
+    : supabase.from('content_packages').insert(payload)
   const { data, error } = await query.select(SELECT).single()
   if (error) throw error
   return data as ContentPackage

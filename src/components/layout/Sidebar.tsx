@@ -63,7 +63,11 @@ export function Sidebar({ profile, className, collapsed = false }: SidebarProps)
     <aside className={cn('flex flex-col h-full min-h-0 bg-sidebar text-sidebar-foreground border-r border-sidebar-border', collapsed ? 'w-16' : 'w-60', className)}>
       {/* Logo / Brand */}
       <div className={cn('flex flex-col items-center justify-center border-b border-sidebar-border', collapsed ? 'px-2 py-4' : 'px-6 py-5')}>
-        {collapsed ? <span title="Desh TV" aria-label="Desh TV" className="flex h-10 w-10 items-center justify-center rounded-lg border-b-2 border-yellow-400 bg-white text-2xl font-bold text-red-700">D</span> : <BrandLogo className="w-full" />}
+        {collapsed ? (
+          <BrandLogo compact className="h-10 w-10" />
+        ) : (
+          <BrandLogo className="w-full" />
+        )}
         {!collapsed && <p className="mt-3 text-[10px] uppercase tracking-widest text-sidebar-foreground/60">Digital Content Management</p>}
       </div>
 

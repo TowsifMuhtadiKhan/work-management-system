@@ -132,3 +132,15 @@ test('failed content submission preserves the form and does not add a task', asy
   await expect(page.locator('tbody tr').first().getByRole('button', { name: 'Save draft' })).toHaveCount(0)
   expect(mock.tables.content_packages[0].status).toBe('draft')
 })
+
+test('user can select a different creator from dropdown when creating package', async ({ page }) => {
+  const mock = backend()
+  await mock.connect(page, creatorId)
+  await page.goto('/content-creator')
+  await page.getByLabel('PKG name').first().fill('Special Project')
+  await page.getByLabel('Creator name', { exact: true }).first().selectOption(outsiderId)
+  await page.getByLabel('Approver', { exact: true }).first().selectOption(approverId)
+  await page.getByRole('button', { name: 'Save draft' }).first().click()
+  await expect(page.locator('tbody tr').first().getByRole('button', { name: 'Save draft' })).toHaveCount(0)
+  expect(mock.tables.content_packages[0].creator_id).toBe(outsiderId)
+})

@@ -103,3 +103,61 @@ export function exportTasksToCSV(tasks: Task[], workDate: string): void {
   link.click()
   URL.revokeObjectURL(url)
 }
+
+/**
+ * Export campaign-specific tasks to an Excel (.xlsx) file including Caption, Facebook Link, and YouTube Link.
+ */
+export function exportMarketingReportToExcel(
+  advertiser: string,
+  packageType: string,
+  startDate: string,
+  endDate: string,
+  tasks: Task[]
+): void {
+  const rows = tasks.map((task, index) => ({
+    '#': index + 1,
+    'Work Date': task.work_date,
+    'File Name': task.file_name,
+    'Task Type': task.task_type?.name ?? task.task_type?.code ?? '',
+    'Assigned Person': task.assigned_profile?.full_name ?? '',
+    'Status': TASK_STATUS_LABELS[task.status],
+    'Priority': TASK_PRIORITY_LABELS[task.priority],
+    'Channel / Page': task.channel?.name ?? '',
+    'Caption': captionText(task.caption),
+    'YouTube Link': task.youtube_link ?? '',
+    'Facebook Link': task.facebook_link ?? '',
+    'Google Drive': task.google_drive_link ?? '',
+    'Remarks': task.remarks ?? '',
+    'Last Updated': task.updated_at
+      ? new Date(task.updated_at).toLocaleString()
+      : new Date(task.created_at).toLocaleString(),
+  }))
+
+  const worksheet = XLSX.utils.json_to_sheet(rows)
+
+  const colWidths = [
+    { wch: 4 },   // #
+    { wch: 12 },  // Work Date
+    { wch: 30 },  // File Name
+    { wch: 14 },  // Task Type
+    { wch: 20 },  // Assigned Person
+    { wch: 12 },  // Status
+    { wch: 10 },  // Priority
+    { wch: 20 },  // Channel
+    { wch: 45 },  // Caption
+    { wch: 35 },  // YouTube Link
+    { wch: 35 },  // Facebook Link
+    { wch: 35 },  // Google Drive
+    { wch: 30 },  // Remarks
+    { wch: 20 },  // Last Updated
+  ]
+  worksheet['!cols'] = colWidths
+
+  const workbook = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Campaign Tasks')
+
+  const safeAdvertiser = advertiser.replace(/[^a-zA-Z0-9_\u0980-\u09FF-]/g, '_')
+  const fileName = `DeshTV_Marketing_${safeAdvertiser}_${startDate || 'all'}_to_${endDate || 'all'}.xlsx`
+  XLSX.writeFile(workbook, fileName)
+}
+

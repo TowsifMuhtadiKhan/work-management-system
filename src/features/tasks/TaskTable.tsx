@@ -25,6 +25,7 @@ import { usePermissions } from '@/hooks/usePermissions'
 import { deleteTask } from '@/services/tasks.service'
 import { formatRelative } from '@/utils/date'
 import { shortenUrl } from '@/utils/format'
+import { Pagination } from '@/components/common/Pagination'
 import type { Task, Profile } from '@/types/entities'
 
 interface TaskTableProps {
@@ -35,10 +36,16 @@ interface TaskTableProps {
 
 export function TaskTable({ tasks, currentProfile, onRefetch }: TaskTableProps) {
   const { isAdmin, canEditTask } = usePermissions(currentProfile)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
   const [editTask, setEditTask] = useState<Task | null>(null)
   const [historyTask, setHistoryTask] = useState<Task | null>(null)
   const [deleteTaskId, setDeleteTaskId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
+
+  const totalPages = Math.max(1, Math.ceil(tasks.length / pageSize))
+  const safeCurrentPage = Math.min(currentPage, totalPages)
+  const paginatedTasks = tasks.slice((safeCurrentPage - 1) * pageSize, safeCurrentPage * pageSize)
 
   const handleDelete = async () => {
     if (!deleteTaskId) return
@@ -79,13 +86,14 @@ export function TaskTable({ tasks, currentProfile, onRefetch }: TaskTableProps) 
             </TableRow>
           </TableHeader>
           <TableBody>
-            {tasks.map((task, index) => {
+            {paginatedTasks.map((task, index) => {
               const canEdit = canEditTask(task.assigned_to, task.assigned_profile as any)
+              const rowNumber = (safeCurrentPage - 1) * pageSize + index + 1
 
               return (
                 <TableRow key={task.id} className="group">
                   <TableCell><ContentSourceIcon packageId={task.source_content_id} /></TableCell>
-                  <TableCell className="text-center text-muted-foreground">{index + 1}</TableCell>
+                  <TableCell className="text-center text-muted-foreground">{rowNumber}</TableCell>
 
                   {/* File Name */}
                   <TableCell className="font-medium">
@@ -149,9 +157,20 @@ export function TaskTable({ tasks, currentProfile, onRefetch }: TaskTableProps) 
 
                   {/* Channel */}
                   <TableCell>
-                    <span className="text-muted-foreground line-clamp-1">
-                      {task.channel?.name ?? '—'}
-                    </span>
+                    {task.channel ? (
+                      <span
+                        className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold"
+                        style={{
+                          backgroundColor: (task.channel.color_hex || '#3B82F6') + '22',
+                          color: task.channel.color_hex || '#3B82F6',
+                          border: `1px solid ${(task.channel.color_hex || '#3B82F6')}44`,
+                        }}
+                      >
+                        {task.channel.name}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
                   </TableCell>
 
                   {/* Marketing Ad */}
@@ -298,6 +317,17 @@ export function TaskTable({ tasks, currentProfile, onRefetch }: TaskTableProps) 
           </TableBody>
         </Table>
       </div>
+
+      {tasks.length > 0 && (
+        <Pagination
+          currentPage={safeCurrentPage}
+          totalItems={tasks.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={setPageSize}
+          className="px-2"
+        />
+      )}
 
       {/* Edit Dialog */}
       {editTask && (

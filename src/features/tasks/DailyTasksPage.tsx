@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { Calendar, Clock } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -26,13 +27,46 @@ export function DailyTasksPage({ mine = false }: { mine?: boolean }) {
   const [search, setSearch] = useState('')
   const [showFilters, setShowFilters] = useState(false)
   const [filters, setFilters] = useState<Omit<TaskFilters, 'workDate' | 'search'>>({})
+  const [now, setNow] = useState(() => new Date())
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 1000)
+    return () => clearInterval(timer)
+  }, [])
+
+  const formattedToday = now.toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+  const formattedTime = now.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+  })
+
   useTasksRealtime(workDate)
   const queryFilters = { ...filters, workDate, search, ...(mine ? { assignedTo: user?.id } : {}) }
   const query = useQuery({ queryKey: ['tasks', workDate, search, filters, mine ? user?.id : 'all'], queryFn: () => fetchTasks(queryFilters), enabled: !!user?.id })
   const tasks = query.data ?? []
   return <div className="flex flex-col h-full">
     <div className="border-b px-3 sm:px-6 py-4 space-y-3 bg-gradient-to-r from-rose-50 via-background to-indigo-50 dark:from-rose-950/30 dark:to-indigo-950/30">
-      <div><h1 className="text-xl font-bold">{mine ? 'My Tasks' : 'Daily Tasks'}</h1><p className="text-sm text-muted-foreground">{mine ? 'Your assignments, organized by time.' : 'Add rows under a time section, fill in the cells, then save each row.'}</p></div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div><h1 className="text-xl font-bold">{mine ? 'My Tasks' : 'Daily Tasks'}</h1><p className="text-sm text-muted-foreground">{mine ? 'Your assignments, organized by time.' : 'Add rows under a time section, fill in the cells, then save each row.'}</p></div>
+        <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg border bg-card/90 shadow-xs text-xs sm:text-sm">
+          <div className="flex items-center gap-1.5 text-muted-foreground font-medium">
+            <Calendar className="h-4 w-4 text-primary" />
+            <span className="text-foreground">{formattedToday}</span>
+          </div>
+          <span className="text-muted-foreground/50">•</span>
+          <div className="flex items-center gap-1.5 font-mono font-bold text-foreground tabular-nums">
+            <Clock className="h-4 w-4 text-primary" />
+            <span>{formattedTime}</span>
+          </div>
+        </div>
+      </div>
       <div className="flex flex-wrap items-center gap-3 justify-between">
         <DateNavigator date={workDate} onDateChange={setWorkDate} />
         <div className="flex flex-wrap gap-2">

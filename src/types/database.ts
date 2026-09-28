@@ -45,6 +45,7 @@ export interface DbChannel {
   id: string
   name: string
   platform: string
+  color_hex?: string | null
   is_active: boolean
   created_at: string
 }
