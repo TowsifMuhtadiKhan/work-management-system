@@ -31,9 +31,9 @@ export interface Task extends DbTask {
   marketing_ad?: MarketingAd | null
   assigned_profile?: Pick<
     DbProfile,
-    'id' | 'full_name' | 'email' | 'employee_code' | 'designation' | 'avatar_url' | 'manager_id' | 'application_role'
+    'id' | 'full_name' | 'email' | 'employee_code' | 'designation' | 'avatar_url' | 'manager_id' | 'application_role' | 'department_id'
   > | null
-  created_by_profile?: Pick<DbProfile, 'id' | 'full_name'> | null
+  created_by_profile?: Pick<DbProfile, 'id' | 'full_name' | 'department_id'> | null
   updated_by_profile?: Pick<DbProfile, 'id' | 'full_name'> | null
 }
 
@@ -41,6 +41,30 @@ export interface Task extends DbTask {
 export interface TaskHistoryEntry extends DbTaskHistory {
   changed_by_profile?: Pick<DbProfile, 'id' | 'full_name' | 'avatar_url'> | null
 }
+
+// ─── Department Feature Definitions ──────────────────────────────────────────
+
+export const DEPARTMENT_FEATURES = [
+  { id: 'dashboard', label: 'Dashboard', href: '/dashboard', description: 'Overview and productivity stats' },
+  { id: 'my_tasks', label: 'My Task', href: '/my-tasks', description: 'Personal task assignments' },
+  { id: 'daily_tasks', label: 'Daily Task', href: '/tasks', description: 'Department daily task schedule' },
+  { id: 'rush', label: 'Rush', href: '/rush', description: 'Rush items and breaking news tracker' },
+  { id: 'content_creator', label: 'Content Creator', href: '/content-creator', description: 'Package submissions & reviews' },
+  { id: 'reports', label: 'Reports', href: '/reports', description: 'Performance and production reports' },
+  { id: 'marketing', label: 'Marketing', href: '/marketing', description: 'Commercial campaigns & target delivery' },
+] as const
+
+export type DepartmentFeatureId = typeof DEPARTMENT_FEATURES[number]['id']
+
+export const DEFAULT_DEPARTMENT_FEATURES: DepartmentFeatureId[] = [
+  'dashboard',
+  'my_tasks',
+  'daily_tasks',
+  'rush',
+  'content_creator',
+  'reports',
+  'marketing',
+]
 
 // ─── Filter/Query types ───────────────────────────────────────────────────────
 

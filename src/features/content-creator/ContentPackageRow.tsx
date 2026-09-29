@@ -27,6 +27,7 @@ export function ContentPackageRow({ entry, userId, canManage, people, unavailabl
   const values: PackageValues = {
     package_name: original?.package_name ?? '',
     creator_id: original?.creator_id ?? userId,
+    script: original?.script ?? '',
     approver_id: original?.approver_id ?? '',
     caption: original?.caption ?? '',
     thumbnail_url: original?.thumbnail_url ?? '',
@@ -89,6 +90,16 @@ export function ContentPackageRow({ entry, userId, canManage, people, unavailabl
       ) : (
         <p className="px-1 py-2 text-sm">{entry?.creator?.full_name ?? people.find(person => person.id === (entry?.creator_id ?? userId))?.full_name ?? 'You'}</p>
       )}
+    </td>
+    <td data-label="Script" className="border p-1.5">
+      <Input
+        aria-label="Script"
+        placeholder="Script / notes"
+        value={values.script ?? ''}
+        readOnly={!editable}
+        disabled={mutation.isPending}
+        onChange={event => change('script', event.target.value)}
+      />
     </td>
     <td data-label="Approver" className="border p-1.5">
       {editable ? <select aria-label="Approver" className="w-full rounded-md border bg-background px-2 py-2 text-xs" value={values.approver_id} disabled={disabled} onChange={event => change('approver_id', event.target.value)}>

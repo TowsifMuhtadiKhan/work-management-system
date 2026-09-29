@@ -18,7 +18,10 @@ export function serializeCaption(html: string) {
 
 export function captionText(value: string | null | undefined): string {
   if (!value) return ''
-  if (!value.startsWith(PREFIX)) return value
+  if (!value.startsWith(PREFIX)) return value.trim()
+  if (typeof DOMParser === 'undefined') {
+    return value.slice(PREFIX.length).replace(/<[^>]*>/g, '').trim()
+  }
   const doc = new DOMParser().parseFromString(captionHTML(value), 'text/html')
   doc.querySelectorAll('br').forEach(node => node.replaceWith('\n'))
   doc.querySelectorAll('p, li, blockquote').forEach(node => node.append('\n'))

@@ -8,6 +8,7 @@ export interface ContentPackage {
   id: string
   package_name: string
   creator_id: string
+  script?: string | null
   approver_id: string
   caption: string
   thumbnail_url: string
@@ -32,6 +33,7 @@ export interface ContentReview {
 }
 export type PackageValues = Pick<ContentPackage, 'package_name' | 'approver_id' | 'caption' | 'thumbnail_url'> & {
   creator_id?: string
+  script?: string
 }
 export type ApprovalValues = Pick<ContentPackage, 'work_date' | 'time_slot' | 'task_type_id' | 'assigned_to'>
 
@@ -53,6 +55,7 @@ export async function saveContentPackage(values: PackageValues, defaultCreatorId
     ...values,
     creator_id: creatorId,
     package_name: values.package_name.trim(),
+    script: (values.script ?? '').trim(),
     thumbnail_url: values.thumbnail_url.trim(),
     status: submit ? 'submitted' : entry?.status ?? 'draft',
   }

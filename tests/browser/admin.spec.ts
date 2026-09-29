@@ -7,14 +7,14 @@ const hostname = new URL(env.VITE_SUPABASE_URL).hostname
 const adminId = '10000000-0000-0000-0000-000000000001'
 const employeeId = '10000000-0000-0000-0000-000000000002'
 
-export async function mockApp(page: Page, { role = 'administrator', ready = true } = {}) {
+export async function mockApp(page: Page, { role = 'administrator', ready = true, departmentId = null as string | null } = {}) {
   const user = { id: adminId, email: 'admin@example.test', aud: 'authenticated', role: 'authenticated', app_metadata: {}, user_metadata: {} }
   const token = `${Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url')}.${Buffer.from(JSON.stringify({ sub: adminId, exp: Math.floor(Date.now() / 1000) + 3600, role: 'authenticated' })).toString('base64url')}.test`
   await page.addInitScript(({ storageKey, session }) => localStorage.setItem(storageKey, JSON.stringify(session)), {
     storageKey: `sb-${hostname.split('.')[0]}-auth-token`,
     session: { access_token: token, refresh_token: 'test-refresh', token_type: 'bearer', expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3600, user },
   })
-  const profile = { id: adminId, email: user.email, full_name: 'Test Administrator', application_role: role, is_active: true, manager_id: null, department_id: null, employee_code: null, designation: null }
+  const profile = { id: adminId, email: user.email, full_name: 'Test Administrator', application_role: role, is_active: true, manager_id: null, department_id: departmentId, employee_code: null, designation: null }
   const employee = { ...profile, id: employeeId, email: 'employee@example.test', full_name: 'Test Employee', application_role: 'employee' }
   const tables: Record<string, Record<string, unknown>[]> = { profiles: [profile, employee], departments: [], task_types: [], channels: [], marketing_ads: [], tasks: [], rush_entries: [] }
   const writes: { table: string; body: Record<string, unknown> }[] = []
@@ -284,7 +284,7 @@ test('only the assigned user gets Mark as done', async ({ page }) => {
   const { tables, writes } = await mockApp(page)
   const date = new Date().toLocaleDateString('en-CA')
   tables.tasks.push(
-    { id: 'own', remarks: 'Published', youtube_link: 'https://youtube.com/watch?v=demo', facebook_link: 'https://facebook.com/demo', file_name: 'Own task', assigned_to: adminId, work_date: date, status: 'in_progress', time_slot: '07:00' },
+    { id: 'own', caption: 'Published caption', youtube_link: 'https://youtube.com/watch?v=demo', facebook_link: 'https://facebook.com/demo', file_name: 'Own task', assigned_to: adminId, work_date: date, status: 'in_progress', time_slot: '07:00' },
     { id: 'other', file_name: 'Other task', assigned_to: employeeId, work_date: date, status: 'in_progress', time_slot: '08:00' })
   await page.goto('/tasks')
   const own = page.getByRole('region', { name: '7:00 AM', exact: true })
@@ -339,12 +339,12 @@ test('expanded cell editor sits above time sections and stays stable while typin
   await expect(editor).toBeHidden()
 })
 
-for (const missing of ['remarks', 'youtube_link', 'facebook_link']) {
+for (const missing of ['caption', 'youtube_link', 'facebook_link']) {
   test('completion requires ' + missing, async ({ page }) => {
     const { tables } = await mockApp(page)
     tables.tasks.push({ id: 'incomplete', file_name: 'Incomplete task', assigned_to: adminId,
       work_date: new Date().toLocaleDateString('en-CA'), status: 'pending', time_slot: '07:00',
-      remarks: 'Published', youtube_link: 'https://youtube.com/watch?v=demo', facebook_link: 'https://facebook.com/demo', [missing]: '  ' })
+      caption: 'Published caption', remarks: '', youtube_link: 'https://youtube.com/watch?v=demo', facebook_link: 'https://facebook.com/demo', [missing]: '  ' })
     await page.goto('/tasks')
     const row = page.locator('tr').filter({ has: page.getByRole('textbox', { name: 'file name', exact: true }).and(page.locator('[value="Incomplete task"]')) })
     await expect(row.getByRole('button', { name: 'Mark as done' })).toBeDisabled()
@@ -354,6 +354,17 @@ for (const missing of ['remarks', 'youtube_link', 'facebook_link']) {
     }
   })
 }
+
+test('completion does not require remarks if caption and links are present', async ({ page }) => {
+  const { tables } = await mockApp(page)
+  tables.tasks.push({ id: 'complete-no-remarks', file_name: 'Complete task without remarks', assigned_to: adminId,
+    work_date: new Date().toLocaleDateString('en-CA'), status: 'pending', time_slot: '07:00',
+    caption: 'Published caption', remarks: '', youtube_link: 'https://youtube.com/watch?v=demo', facebook_link: 'https://facebook.com/demo' })
+  await page.goto('/tasks')
+  const row = page.locator('tr').filter({ has: page.getByRole('textbox', { name: 'file name', exact: true }).and(page.locator('[value="Complete task without remarks"]')) })
+  await expect(row.getByRole('button', { name: 'Mark as done' })).toBeEnabled()
+  await expect(row.getByRole('combobox', { name: 'status', exact: true }).locator('option[value="done"]')).toBeEnabled()
+})
 
 test('editing the last draft adds one blank row without losing focus or other drafts', async ({ page }) => {
   await mockApp(page)
@@ -377,4 +388,122 @@ test('editing the last draft adds one blank row without losing focus or other dr
   await expect(names.first()).toHaveValue('Second draft')
   await expect(names.nth(1)).toHaveValue('')
   await expect(section.getByRole('button', { name: 'Add row', exact: true })).toHaveCount(0)
+})
+
+test('admin can filter daily tasks and dashboard by department', async ({ page }) => {
+  const { tables } = await mockApp(page)
+  const deptA = { id: 'dept-1', name: 'Digital Team', code: 'DIG', is_active: true }
+  const deptB = { id: 'dept-2', name: 'Web Team', code: 'WEB', is_active: true }
+  tables.departments.push(deptA, deptB)
+  const today = new Date().toLocaleDateString('en-CA')
+  tables.tasks.push(
+    {
+      id: 'task-dig-1',
+      file_name: 'Digital Breaking News',
+      assigned_to: adminId,
+      work_date: today,
+      status: 'pending',
+      time_slot: '08:00',
+      assigned_profile: { id: adminId, full_name: 'Admin User', department_id: 'dept-1' },
+    },
+    {
+      id: 'task-web-1',
+      file_name: 'Web Homepage Redesign',
+      assigned_to: employeeId,
+      work_date: today,
+      status: 'pending',
+      time_slot: '09:00',
+      assigned_profile: { id: employeeId, full_name: 'Web Staff', department_id: 'dept-2' },
+    }
+  )
+
+  // Daily Tasks department filter
+  await page.goto('/tasks')
+  const deptFilter = page.getByRole('combobox', { name: 'Filter by department' })
+  await expect(deptFilter).toBeVisible()
+  await expect(deptFilter).toHaveValue('all')
+  await expect(page.locator('input[value="Digital Breaking News"]')).toBeVisible()
+  await expect(page.locator('input[value="Web Homepage Redesign"]')).toBeVisible()
+
+  // Filter to Digital Team only
+  await deptFilter.selectOption('dept-1')
+  await expect(page.locator('input[value="Digital Breaking News"]')).toBeVisible()
+  await expect(page.locator('input[value="Web Homepage Redesign"]')).toBeHidden()
+
+  // Filter to Web Team only
+  await deptFilter.selectOption('dept-2')
+  await expect(page.locator('input[value="Digital Breaking News"]')).toBeHidden()
+  await expect(page.locator('input[value="Web Homepage Redesign"]')).toBeVisible()
+
+  // Dashboard department filter
+  await page.goto('/dashboard')
+  const dashFilter = page.getByRole('combobox', { name: 'Filter dashboard by department' })
+  await expect(dashFilter).toBeVisible()
+  await dashFilter.selectOption('dept-1')
+  await expect(page.getByText('Digital Team Department Overview')).toBeVisible()
+})
+
+test('admin can configure allowed features per department in settings', async ({ page }) => {
+  const { tables } = await mockApp(page)
+  const dept = { id: 'dept-dig', name: 'Digital Team', code: 'DIG', is_active: true, allowed_features: ['daily_tasks', 'rush'] }
+  tables.departments.push(dept)
+
+  await page.goto('/admin/settings')
+  await expect(page.getByText('Role & Department Navigation Theme')).toBeVisible()
+
+  // Toggle feature or Select All
+  await page.getByRole('button', { name: 'Enable All' }).click()
+  await page.getByRole('button', { name: /Save Permissions/i }).click()
+  await expect(page.getByText(/Access permissions updated for Digital Team/i)).toBeVisible()
+})
+
+test('non-admin user sidebar is filtered according to department allowed_features', async ({ page }) => {
+  const { tables } = await mockApp(page, { role: 'employee', departmentId: 'dept-restricted' })
+  tables.departments.push({
+    id: 'dept-restricted',
+    name: 'Specialist Unit',
+    code: 'SPEC',
+    is_active: true,
+    allowed_features: ['daily_tasks'],
+  })
+
+  await page.goto('/tasks')
+  // Sidebar should contain Daily Task
+  await expect(page.getByRole('link', { name: 'Daily Task', exact: true })).toBeVisible()
+  // Features not allowed for this department should be hidden
+  await expect(page.getByRole('link', { name: 'Rush', exact: true })).toBeHidden()
+  await expect(page.getByRole('link', { name: 'Content Creator', exact: true })).toBeHidden()
+  await expect(page.getByRole('link', { name: 'Marketing', exact: true })).toBeHidden()
+  await expect(page.getByRole('link', { name: 'Reports', exact: true })).toBeHidden()
+})
+
+test('administrator limit prevents adding more than 2 additional administrators (max 3 total)', async ({ page }) => {
+  const { tables } = await mockApp(page)
+  // Add 2 more administrators so total administrators is 3 (1 main admin + 2 additional)
+  tables.profiles.push(
+    { id: '10000000-0000-0000-0000-000000000003', email: 'admin2@example.test', full_name: 'Second Admin', application_role: 'administrator', is_active: true, manager_id: null, department_id: null, employee_code: null, designation: null },
+    { id: '10000000-0000-0000-0000-000000000004', email: 'admin3@example.test', full_name: 'Third Admin', application_role: 'administrator', is_active: true, manager_id: null, department_id: null, employee_code: null, designation: null }
+  )
+
+  await page.goto('/admin/employees')
+  await expect(page.getByText('3 / 3')).toBeVisible()
+  await expect(page.getByText(/The maximum limit of 3 administrators is reached/i)).toBeVisible()
+
+  // Try to edit the employee
+  await page.getByRole('row', { name: /Test Employee/i }).getByRole('button', { name: 'Edit' }).click()
+  const roleSelect = page.getByLabel('Role', { exact: true })
+  const adminOption = roleSelect.locator('option[value="administrator"]')
+  await expect(adminOption).toBeDisabled()
+  await expect(adminOption).toContainText('Limit reached')
+})
+
+test('login page provides password reset modal for employees', async ({ page }) => {
+  await page.goto('/login')
+  const resetBtn = page.getByRole('button', { name: 'Reset password' })
+  await expect(resetBtn).toBeVisible()
+  await resetBtn.click()
+  await expect(page.getByRole('heading', { name: 'Reset your password' })).toBeVisible()
+  await expect(page.getByLabel('Work email address')).toBeVisible()
+  await page.getByRole('button', { name: 'Cancel' }).click()
+  await expect(page.getByRole('heading', { name: 'Reset your password' })).toBeHidden()
 })

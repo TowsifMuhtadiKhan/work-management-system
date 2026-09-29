@@ -6,7 +6,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { signIn } from '@/hooks/useAuth'
+import { supabase } from '@/lib/supabase/client'
 
 export function LoginPage() {
   const navigate = useNavigate()
@@ -15,6 +17,30 @@ export function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [forgotOpen, setForgotOpen] = useState(false)
+  const [resetEmail, setResetEmail] = useState('')
+  const [resetLoading, setResetLoading] = useState(false)
+  const [resetSent, setResetSent] = useState(false)
+  const [resetError, setResetError] = useState<string | null>(null)
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!resetEmail.trim()) return
+    setResetLoading(true)
+    setResetError(null)
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail.trim(), {
+        redirectTo: `${window.location.origin}/profile`,
+      })
+      if (error) throw error
+      setResetSent(true)
+      toast.success('Password reset link sent!')
+    } catch (err: unknown) {
+      setResetError(err instanceof Error ? err.message : 'Failed to send reset link')
+    } finally {
+      setResetLoading(false)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -106,6 +132,17 @@ export function LoginPage() {
             </div>
           </div>
 
+          <div className="flex items-center justify-between text-xs pt-1">
+            <span className="text-zinc-400">First time login with initial password?</span>
+            <button
+              type="button"
+              onClick={() => setForgotOpen(true)}
+              className="text-amber-300 hover:text-amber-200 underline underline-offset-2"
+            >
+              Reset password
+            </button>
+          </div>
+
           <Button
             type="submit"
             className="w-full bg-primary hover:bg-primary/90 text-white"
@@ -123,6 +160,59 @@ export function LoginPage() {
           </Link>
         </p>
       </CardContent>
+
+      <Dialog open={forgotOpen} onOpenChange={setForgotOpen}>
+        <DialogContent className="sm:max-w-md bg-zinc-900 border-zinc-700 text-white">
+          <DialogHeader>
+            <DialogTitle className="text-white">Reset your password</DialogTitle>
+            <DialogDescription className="text-zinc-300">
+              Enter your work email address to receive password reset instructions.
+            </DialogDescription>
+          </DialogHeader>
+          {resetSent ? (
+            <div className="space-y-4 py-2">
+              <p className="text-sm text-green-400">
+                A password reset email has been sent to <strong>{resetEmail}</strong>. Please check your inbox.
+              </p>
+              <Button
+                className="w-full"
+                onClick={() => {
+                  setForgotOpen(false)
+                  setResetSent(false)
+                  setResetEmail('')
+                }}
+              >
+                Back to Sign In
+              </Button>
+            </div>
+          ) : (
+            <form onSubmit={handleResetPassword} className="space-y-4 py-2">
+              {resetError && <p className="text-sm text-red-400">{resetError}</p>}
+              <div className="space-y-1.5">
+                <Label htmlFor="reset-email" className="text-zinc-200 text-xs">Work email address</Label>
+                <Input
+                  id="reset-email"
+                  type="email"
+                  required
+                  placeholder="you@deshtv.com"
+                  value={resetEmail}
+                  onChange={(e) => setResetEmail(e.target.value)}
+                  disabled={resetLoading}
+                  className="bg-white/10 border-white/20 text-white placeholder:text-white/30"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button type="button" variant="outline" className="border-zinc-600 text-zinc-200" onClick={() => setForgotOpen(false)} disabled={resetLoading}>
+                  Cancel
+                </Button>
+                <Button disabled={resetLoading} className="bg-primary hover:bg-primary/90 text-white">
+                  {resetLoading ? 'Sending…' : 'Send reset link'}
+                </Button>
+              </div>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
     </Card>
   )
 }

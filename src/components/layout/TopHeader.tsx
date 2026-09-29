@@ -1,4 +1,4 @@
-import { Moon, Sun, Bell, LogOut, User, ChevronDown, Menu, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { Moon, Sun, Bell, LogOut, User, KeyRound, ChevronDown, Menu, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -96,6 +96,10 @@ export function TopHeader({ profile, isDark, onToggleDark, pageTitle, onOpenMenu
               <DropdownMenuItem onClick={() => navigate('/profile')}>
                 <User className="mr-2 h-4 w-4" />
                 My Profile
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate('/profile')}>
+                <KeyRound className="mr-2 h-4 w-4" />
+                Change Password
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem

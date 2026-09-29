@@ -129,8 +129,8 @@ BEGIN
     END IF;
   END IF;
   IF NEW.status = 'done' THEN
-    IF coalesce(NEW.remarks, '') !~ '[^[:space:]]' THEN
-      RAISE EXCEPTION 'Add remarks before marking this task as done.' USING ERRCODE = '23514';
+    IF coalesce(regexp_replace(regexp_replace(NEW.caption, '^<!--caption-rich-v1-->', ''), '<[^>]+>', '', 'g'), '') !~ '[^[:space:]]' THEN
+      RAISE EXCEPTION 'Add a caption before marking this task as done.' USING ERRCODE = '23514';
     END IF;
     IF coalesce(NEW.youtube_link, '') !~ '[^[:space:]]' THEN
       RAISE EXCEPTION 'Add a YouTube link before marking this task as done.' USING ERRCODE = '23514';
@@ -281,7 +281,10 @@ CREATE TRIGGER guard_content_task_source BEFORE INSERT OR UPDATE ON public.tasks
 
 CREATE OR REPLACE FUNCTION private.guard_content_package() RETURNS trigger
 LANGUAGE plpgsql SECURITY INVOKER SET search_path = '' AS $$
-DECLARE actor uuid := auth.uid();
+DECLARE
+  actor uuid := auth.uid();
+  v_creator_name text;
+  v_remark text;
 BEGIN
   IF actor IS NULL OR NOT private.active_employee() THEN
     RAISE EXCEPTION 'An active employee account is required.' USING ERRCODE = '42501';
@@ -346,8 +349,26 @@ BEGIN
       OR NOT EXISTS (SELECT 1 FROM public.profiles WHERE id = NEW.assigned_to AND is_active) THEN
       RAISE EXCEPTION 'Choose an active task type and assigned person.';
     END IF;
-    INSERT INTO public.tasks(work_date, time_slot, file_name, task_type_id, assigned_to, status, caption, priority, created_by, source_content_id)
-    VALUES (NEW.work_date, NEW.time_slot, NEW.package_name, NEW.task_type_id, NEW.assigned_to, 'pending', NEW.caption, 'normal', actor, NEW.id)
+
+    SELECT full_name INTO v_creator_name FROM public.profiles WHERE id = NEW.creator_id;
+    IF v_creator_name IS NULL OR v_creator_name !~ '[^[:space:]]' THEN
+      v_creator_name := 'Creator';
+    END IF;
+
+    IF NEW.thumbnail_url IS NOT NULL AND btrim(NEW.thumbnail_url) <> '' THEN
+      v_remark := v_creator_name || ' Thumb: ' || btrim(NEW.thumbnail_url);
+    ELSE
+      v_remark := v_creator_name;
+    END IF;
+
+    INSERT INTO public.tasks(
+      work_date, time_slot, file_name, task_type_id, assigned_to,
+      status, caption, remarks, priority, created_by, source_content_id
+    )
+    VALUES (
+      NEW.work_date, NEW.time_slot, NEW.package_name, NEW.task_type_id, NEW.assigned_to,
+      'pending', NEW.caption, v_remark, 'normal', actor, NEW.id
+    )
     RETURNING id INTO NEW.task_id;
   ELSE
     NEW.work_date := OLD.work_date; NEW.time_slot := OLD.time_slot;
@@ -394,6 +415,53 @@ SET color_hex = CASE
   ELSE '#3B82F6'
 END
 WHERE color_hex IS NULL OR color_hex = '#3B82F6';
+
+-- Add allowed_features to public.departments
+ALTER TABLE public.departments
+ADD COLUMN IF NOT EXISTS allowed_features text[] NOT NULL
+DEFAULT ARRAY['dashboard', 'my_tasks', 'daily_tasks', 'rush', 'content_creator', 'reports', 'marketing'];
+
+-- Enforce maximum of 3 administrators (1 main admin + at most 2 additional admins)
+CREATE OR REPLACE FUNCTION public.guard_profile_administration()
+RETURNS trigger LANGUAGE plpgsql SECURITY INVOKER SET search_path = '' AS $$
+DECLARE
+  current_admin_count integer;
+BEGIN
+  IF OLD.id = auth.uid() AND OLD.application_role = 'administrator'
+     AND (NEW.application_role <> 'administrator' OR NOT NEW.is_active) THEN
+    RAISE EXCEPTION 'Ask another administrator to change your administrative access.';
+  END IF;
+
+  IF (NEW.application_role = 'administrator' AND NEW.is_active = TRUE) 
+     AND (OLD.application_role <> 'administrator' OR OLD.is_active = FALSE) THEN
+    SELECT count(*) INTO current_admin_count
+    FROM public.profiles
+    WHERE application_role = 'administrator' AND is_active = TRUE AND id <> NEW.id;
+
+    IF current_admin_count >= 3 THEN
+      RAISE EXCEPTION 'Maximum administrator limit reached (maximum 3 administrators allowed: 1 main admin + up to 2 additional admins). Demote an existing administrator first.'
+      USING ERRCODE = '23514';
+    END IF;
+  END IF;
+
+  IF NEW.manager_id IS DISTINCT FROM OLD.manager_id AND NEW.manager_id IS NOT NULL THEN
+    IF EXISTS (
+      WITH RECURSIVE chain AS (
+        SELECT id, manager_id FROM public.profiles WHERE id = NEW.manager_id
+        UNION
+        SELECT p.id, p.manager_id FROM public.profiles p JOIN chain c ON p.id = c.manager_id
+      ) SELECT 1 FROM chain WHERE id = NEW.id
+    ) THEN
+      RAISE EXCEPTION 'This manager creates a circular reporting hierarchy.';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+-- Add script column to public.content_packages
+ALTER TABLE public.content_packages
+ADD COLUMN IF NOT EXISTS script text NOT NULL DEFAULT '';
 
 -- Reload PostgREST schema cache
 NOTIFY pgrst, 'reload schema';

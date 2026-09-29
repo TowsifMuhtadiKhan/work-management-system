@@ -21,13 +21,15 @@ export function formatPriority(priority: TaskPriority): string {
 
 // ─── Name formatting ─────────────────────────────────────────────────────────
 
-export function initials(name: string): string {
+export function initials(name?: string | null): string {
+  if (!name) return '??'
   return name
     .split(' ')
+    .filter(Boolean)
     .map((n) => n[0])
     .join('')
     .toUpperCase()
-    .slice(0, 2)
+    .slice(0, 2) || '??'
 }
 
 // ─── Number / percentage ──────────────────────────────────────────────────────

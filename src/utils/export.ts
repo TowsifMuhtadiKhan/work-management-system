@@ -114,42 +114,20 @@ export function exportMarketingReportToExcel(
   endDate: string,
   tasks: Task[]
 ): void {
-  const rows = tasks.map((task, index) => ({
-    '#': index + 1,
-    'Work Date': task.work_date,
-    'File Name': task.file_name,
-    'Task Type': task.task_type?.name ?? task.task_type?.code ?? '',
-    'Assigned Person': task.assigned_profile?.full_name ?? '',
-    'Status': TASK_STATUS_LABELS[task.status],
-    'Priority': TASK_PRIORITY_LABELS[task.priority],
-    'Channel / Page': task.channel?.name ?? '',
+  const rows = tasks.map((task) => ({
+    'Date': task.work_date,
     'Caption': captionText(task.caption),
-    'YouTube Link': task.youtube_link ?? '',
     'Facebook Link': task.facebook_link ?? '',
-    'Google Drive': task.google_drive_link ?? '',
-    'Remarks': task.remarks ?? '',
-    'Last Updated': task.updated_at
-      ? new Date(task.updated_at).toLocaleString()
-      : new Date(task.created_at).toLocaleString(),
+    'YouTube Link': task.youtube_link ?? '',
   }))
 
   const worksheet = XLSX.utils.json_to_sheet(rows)
 
   const colWidths = [
-    { wch: 4 },   // #
-    { wch: 12 },  // Work Date
-    { wch: 30 },  // File Name
-    { wch: 14 },  // Task Type
-    { wch: 20 },  // Assigned Person
-    { wch: 12 },  // Status
-    { wch: 10 },  // Priority
-    { wch: 20 },  // Channel
-    { wch: 45 },  // Caption
-    { wch: 35 },  // YouTube Link
-    { wch: 35 },  // Facebook Link
-    { wch: 35 },  // Google Drive
-    { wch: 30 },  // Remarks
-    { wch: 20 },  // Last Updated
+    { wch: 14 },  // Date
+    { wch: 50 },  // Caption
+    { wch: 40 },  // Facebook Link
+    { wch: 40 },  // YouTube Link
   ]
   worksheet['!cols'] = colWidths
 

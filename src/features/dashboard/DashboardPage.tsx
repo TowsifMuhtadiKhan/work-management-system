@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { CheckCircle2, Clock, AlertCircle, BarChart3, TrendingUp, Users } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -7,12 +8,32 @@ import { StatusBadge } from '@/components/common/StatusBadge'
 import { UserAvatar } from '@/components/common/UserAvatar'
 import { fetchDailyStats, fetchTasks, fetchTasksByEmployee } from '@/services/tasks.service'
 import { fetchMarketingAds, fetchMarketingProgress } from '@/services/marketingAds.service'
+import { fetchDepartments } from '@/services/departments.service'
+import { useAuth } from '@/hooks/useAuth'
+import { useProfile } from '@/hooks/useProfile'
 import { todayISO, formatDate } from '@/utils/date'
 import { formatPercent } from '@/utils/format'
 import type { Task } from '@/types/entities'
 
 export function DashboardPage() {
   const today = todayISO()
+  const { user } = useAuth()
+  const profile = useProfile(user?.id)
+  const isAdmin = profile.data?.application_role === 'administrator'
+  const userDeptId = profile.data?.department_id
+
+  const { data: departments = [] } = useQuery({
+    queryKey: ['departments'],
+    queryFn: fetchDepartments,
+  })
+
+  const [adminDepartmentFilter, setAdminDepartmentFilter] = useState<string>('all')
+
+  const activeDepartmentId = isAdmin
+    ? (adminDepartmentFilter === 'all' ? undefined : adminDepartmentFilter)
+    : (userDeptId || undefined)
+
+  const activeDeptObj = departments.find(d => d.id === (isAdmin ? activeDepartmentId : userDeptId))
 
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ['daily-stats', today],
@@ -20,16 +41,24 @@ export function DashboardPage() {
     refetchInterval: 60 * 1000, // refresh every 60s
   })
 
-  const { data: tasks = [], isLoading: tasksLoading } = useQuery({
-    queryKey: ['tasks', today, '', {}],
-    queryFn: () => fetchTasks({ workDate: today }),
+  const { data: rawTasks = [], isLoading: tasksLoading } = useQuery({
+    queryKey: ['tasks', today, '', {}, activeDepartmentId ?? 'all'],
+    queryFn: () => fetchTasks({ workDate: today, ...(activeDepartmentId ? { departmentId: activeDepartmentId } : {}) }),
     staleTime: 30 * 1000,
   })
 
-  const { data: employeeData = [] } = useQuery({
+  const tasks = activeDepartmentId
+    ? rawTasks.filter(t => t.assigned_profile?.department_id === activeDepartmentId)
+    : rawTasks
+
+  const { data: rawEmployeeData = [] } = useQuery({
     queryKey: ['tasks-by-employee', today],
     queryFn: () => fetchTasksByEmployee(today),
   })
+
+  const employeeData = activeDepartmentId
+    ? rawEmployeeData.filter((row: any) => row.assigned_profile?.department_id === activeDepartmentId)
+    : rawEmployeeData
 
   const { data: marketingAds = [] } = useQuery({
     queryKey: ['marketing-ads'],
@@ -38,7 +67,6 @@ export function DashboardPage() {
 
   const { data: marketingProgress = [] } = useQuery({
     queryKey: ['marketing-progress', today],
-    queryFn: () => fetchMarketingProgress(today),
   })
 
   // Aggregate employee stats
@@ -77,7 +105,7 @@ export function DashboardPage() {
 
   // Marketing progress
   const marketingCompletedMap = new Map<string, number>()
-  marketingProgress.forEach((row: any) => {
+  ;((marketingProgress as any[]) || []).forEach((row: any) => {
     if (row.marketing_ad_id && row.status === 'done') {
       marketingCompletedMap.set(
         row.marketing_ad_id,
@@ -86,69 +114,104 @@ export function DashboardPage() {
     }
   })
 
+  const totalTasksCount = activeDepartmentId ? tasks.length : (stats?.total ?? 0)
+  const doneTasksCount = activeDepartmentId ? tasks.filter(t => t.status === 'done').length : (stats?.done ?? 0)
+  const inProgressTasksCount = activeDepartmentId ? tasks.filter(t => t.status === 'in_progress').length : (stats?.in_progress ?? 0)
+  const pendingTasksCount = activeDepartmentId
+    ? tasks.filter(t => t.status === 'pending' || t.status === 'assigned').length
+    : ((stats?.pending ?? 0) + (stats?.assigned ?? 0))
+  const holdTasksCount = activeDepartmentId ? tasks.filter(t => t.status === 'hold').length : (stats?.hold ?? 0)
+  const cancelledTasksCount = activeDepartmentId ? tasks.filter(t => t.status === 'cancelled').length : (stats?.cancelled ?? 0)
+  const completionRate = totalTasksCount > 0 ? (doneTasksCount / totalTasksCount) * 100 : 0
+
   return (
     <div className="p-3 sm:p-6 space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-xl font-bold">Operations Dashboard</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">{formatDate(today)} · Live</p>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold">Operations Dashboard</h1>
+            {activeDeptObj && (
+              <span className="rounded-full bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200 px-2.5 py-0.5 text-xs font-semibold">
+                {activeDeptObj.name}
+              </span>
+            )}
+          </div>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            {formatDate(today)} · {activeDeptObj ? `${activeDeptObj.name} Department Overview` : 'Live Operations'}
+          </p>
+        </div>
+        {isAdmin && departments.length > 0 && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-muted-foreground">Department:</span>
+            <select
+              aria-label="Filter dashboard by department"
+              value={adminDepartmentFilter}
+              onChange={e => setAdminDepartmentFilter(e.target.value)}
+              className="h-9 rounded-md border border-input bg-background px-3 text-xs font-medium focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            >
+              <option value="all">All Departments (Company-wide)</option>
+              {departments.map(dept => (
+                <option key={dept.id} value={dept.id}>{dept.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          loading={statsLoading}
+          loading={statsLoading || tasksLoading}
           title="Total Tasks"
-          value={stats?.total ?? 0}
+          value={totalTasksCount}
           icon={<BarChart3 className="h-5 w-5 text-blue-500" />}
           subtitle="Today's assignments"
         />
         <StatCard
-          loading={statsLoading}
+          loading={statsLoading || tasksLoading}
           title="Completed"
-          value={stats?.done ?? 0}
+          value={doneTasksCount}
           icon={<CheckCircle2 className="h-5 w-5 text-green-500" />}
-          subtitle={`${formatPercent(stats?.completion_rate ?? 0)} completion`}
+          subtitle={`${formatPercent(completionRate)} completion`}
           valueClassName="text-green-600 dark:text-green-400"
         />
         <StatCard
-          loading={statsLoading}
+          loading={statsLoading || tasksLoading}
           title="In Progress"
-          value={stats?.in_progress ?? 0}
+          value={inProgressTasksCount}
           icon={<Clock className="h-5 w-5 text-amber-500" />}
           subtitle="Currently being worked"
           valueClassName="text-amber-600 dark:text-amber-400"
         />
         <StatCard
-          loading={statsLoading}
+          loading={statsLoading || tasksLoading}
           title="Pending"
-          value={(stats?.pending ?? 0) + (stats?.assigned ?? 0)}
+          value={pendingTasksCount}
           icon={<AlertCircle className="h-5 w-5 text-slate-500" />}
           subtitle="Awaiting action"
         />
       </div>
 
       {/* Completion Rate Bar */}
-      {stats && (
-        <Card>
-          <CardContent className="pt-4">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium">Today's Completion</span>
-              <span className="text-sm font-bold text-green-600">
-                {formatPercent(stats.completion_rate)}
-              </span>
-            </div>
-            <Progress value={stats.completion_rate} className="h-3" />
-            <div className="flex gap-4 mt-3 text-xs text-muted-foreground">
-              <span>✓ Done: {stats.done}</span>
-              <span>⟳ In Progress: {stats.in_progress}</span>
-              <span>○ Pending: {stats.pending + stats.assigned}</span>
-              <span>⏸ Hold: {stats.hold}</span>
-              <span>✕ Cancelled: {stats.cancelled}</span>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      <Card>
+        <CardContent className="pt-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium">Today's Completion</span>
+            <span className="text-sm font-bold text-green-600">
+              {formatPercent(completionRate)}
+            </span>
+          </div>
+          <Progress value={completionRate} className="h-3" />
+          <div className="flex flex-wrap gap-4 mt-3 text-xs text-muted-foreground">
+            <span>✓ Done: {doneTasksCount}</span>
+            <span>⟳ In Progress: {inProgressTasksCount}</span>
+            <span>○ Pending: {pendingTasksCount}</span>
+            <span>⏸ Hold: {holdTasksCount}</span>
+            <span>✕ Cancelled: {cancelledTasksCount}</span>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Tasks by Employee */}

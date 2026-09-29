@@ -3,12 +3,15 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { AccountSecurity } from './AccountSecurity'
 import { useAdministrationReady } from './useAdministrationReady'
+import { DepartmentAccessSettings } from './DepartmentAccessSettings'
 
 export function SettingsPage() {
   const ready = useAdministrationReady()
   const signupUrl = `${window.location.origin}/signup`
   return <div className="p-3 sm:p-6 space-y-6 max-w-5xl">
-    <div><h1 className="text-xl font-bold">Administration Settings</h1><p className="text-sm text-muted-foreground mt-1">Account security, access setup, and guidance for your team.</p></div>
+    <div><h1 className="text-xl font-bold">Administration Settings</h1><p className="text-sm text-muted-foreground mt-1">Configure role permissions, department feature themes, and account security.</p></div>
+
+    <DepartmentAccessSettings />
     <section className="rounded-lg border bg-card p-5 space-y-3">
       <h2 className="font-semibold">Employee management setup</h2>
       {ready.isPending ? <p role="status">Checking setup...</p> : ready.data ? <p role="status" className="text-sm text-green-700">Ready. Administrator-only employee management is installed.</p> : <div className="text-sm space-y-2" role="alert">

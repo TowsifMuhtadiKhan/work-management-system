@@ -12,6 +12,7 @@ export interface DbDepartment {
   name: string
   code: string
   is_active: boolean
+  allowed_features?: string[] | null
   created_at: string
   updated_at: string
 }

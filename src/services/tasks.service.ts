@@ -9,9 +9,9 @@ const TASK_SELECT = `
   channel:channels(*),
   marketing_ad:marketing_ads(*),
   assigned_profile:profiles!tasks_assigned_to_fkey(
-    id, full_name, email, employee_code, designation, avatar_url, manager_id, application_role
+    id, full_name, email, employee_code, designation, avatar_url, manager_id, application_role, department_id
   ),
-  created_by_profile:profiles!tasks_created_by_fkey(id, full_name),
+  created_by_profile:profiles!tasks_created_by_fkey(id, full_name, department_id),
   updated_by_profile:profiles!tasks_updated_by_fkey(id, full_name)
 `
 
@@ -44,16 +44,16 @@ export async function fetchTasks(filters: TaskFilters): Promise<Task[]> {
   if (filters.search) {
     query = query.ilike('file_name', `%${filters.search}%`)
   }
-  if (filters.departmentId) {
-    // Filter through assigned_profile → department_id
-    query = query.eq('assigned_profile.department_id', filters.departmentId)
-  }
 
   query = query.order('created_at', { ascending: true })
 
   const { data, error } = await query
   if (error) throw error
-  return (data ?? []) as Task[]
+  let tasks = (data ?? []) as Task[]
+  if (filters.departmentId) {
+    tasks = tasks.filter(t => t.assigned_profile?.department_id === filters.departmentId)
+  }
+  return tasks
 }
 
 // ─── Fetch a single task by ID ────────────────────────────────────────────────

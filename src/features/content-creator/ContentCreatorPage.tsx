@@ -49,9 +49,9 @@ export function ContentCreatorPage() {
     {query.isPending && <p role="status">Loading content packages...</p>}
     {people.isError && <p role="alert" className="text-destructive">Unable to load approvers. Refresh to try again.</p>}
       <div className="overflow-x-auto rounded-md border">
-        <table className="responsive-sheet w-full min-w-[1250px] table-fixed border-collapse text-sm">
+        <table className="responsive-sheet w-full min-w-[1350px] table-fixed border-collapse text-sm">
           <caption className="bg-red-600 px-4 py-3 text-xl font-bold text-white">CONTENT CREATOR PKG LIST</caption>
-          <thead className="bg-muted"><tr>{['PKG name', 'Creator name', 'Approver', 'Status', 'Caption', 'Thumb', 'Actions'].map(label => <th scope="col" key={label} className="border px-3 py-2 text-left uppercase">{label}</th>)}</tr></thead>
+          <thead className="bg-muted"><tr>{['PKG name', 'Creator name', 'Script', 'Approver', 'Status', 'Caption', 'Thumb', 'Actions'].map(label => <th scope="col" key={label} className="border px-3 py-2 text-left uppercase">{label}</th>)}</tr></thead>
           <tbody>
             {user && rows.map(entry => <ContentPackageRow key={entry.id} entry={entry} userId={user.id} canManage={isLead} people={people.data ?? []} unavailable={query.isError || query.isPending} onDetails={action => setParams({ package: entry.id, ...(action ? { action } : {}) })} />)}
             {user && <SheetDraftRows>{actions => <ContentPackageRow userId={user.id} canManage={isLead} people={people.data ?? []} hidden={view === 'review'} unavailable={query.isError || query.isPending || people.isError || people.isPending} {...actions} />}</SheetDraftRows>}
@@ -85,6 +85,7 @@ function PackageDialog({ entry: initialEntry, requestedAction, userId, canManage
   const [values, setValues] = useState<PackageValues>({
     package_name: entry?.package_name ?? '',
     creator_id: entry?.creator_id ?? userId,
+    script: entry?.script ?? '',
     approver_id: entry?.approver_id ?? '',
     caption: entry?.caption ?? '',
     thumbnail_url: entry?.thumbnail_url ?? '',
@@ -124,6 +125,7 @@ function PackageDialog({ entry: initialEntry, requestedAction, userId, canManage
           <label className="block space-y-1 text-sm font-medium">Creator<select aria-label="Creator" className={fieldClass} value={values.creator_id || userId} onChange={event => setValues({ ...values, creator_id: event.target.value })}>
             <option value="">Select creator</option>{(people.data ?? []).map(person => <option key={person.id} value={person.id} disabled={person.id === values.approver_id}>{person.full_name}</option>)}
           </select></label>
+          <label className="block space-y-1 text-sm font-medium">Script<Input aria-label="Script" placeholder="Script / notes" value={values.script ?? ''} onChange={event => setValues({ ...values, script: event.target.value })} /></label>
           <label className="block space-y-1 text-sm font-medium">Approver<select aria-label="Approver" className={fieldClass} value={values.approver_id} onChange={event => setValues({ ...values, approver_id: event.target.value })}>
             <option value="">Select approver</option>{(people.data ?? []).filter(person => person.id !== (values.creator_id || userId)).map(person => <option key={person.id} value={person.id}>{person.full_name}</option>)}
           </select></label>
@@ -133,6 +135,7 @@ function PackageDialog({ entry: initialEntry, requestedAction, userId, canManage
         </> : entry && <div className="space-y-3 text-sm">
           <h2 className="font-semibold">{entry.package_name}</h2>
           <p>Creator: {entry.creator?.full_name ?? 'Creator'} · Approver: {entry.approver?.full_name ?? 'Selected approver'}</p>
+          {entry.script && <p className="text-sm"><span className="font-semibold">Script:</span> {entry.script}</p>}
           <p className="whitespace-pre-wrap break-words">{entry.caption || 'No caption'}</p>
           <div className="max-w-xs"><Thumbnail url={entry.thumbnail_url} /></div>
           {entry.status === 'approved' && <Link className="inline-flex items-center gap-2 text-primary underline" to={`/tasks?date=${entry.work_date}`}><Clapperboard className="h-4 w-4" />View Daily Task ({entry.work_date}, {slotLabel(entry.time_slot ?? '')})</Link>}

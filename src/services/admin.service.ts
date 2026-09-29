@@ -10,7 +10,7 @@ export async function saveEmployee(id: string, changes: DbProfileUpdate) {
   if (error) throw error
 }
 
-export async function registerEmployee(fullName: string, email: string, password: string, designation?: string) {
+export async function registerEmployee(fullName: string, email: string, password: string, designation?: string, departmentId?: string) {
   const { data: admin, error: permissionError } = await supabase.rpc('is_admin')
   if (permissionError) throw permissionError
   if (!admin) throw new Error('Only an active administrator can add employees here.')
@@ -20,20 +20,25 @@ export async function registerEmployee(fullName: string, email: string, password
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storageKey: 'employee-registration' },
   })
   const trimmedDesignation = designation?.trim()
+  const trimmedDepartment = departmentId?.trim() || null
   const { data, error } = await registration.auth.signUp({
     email: email.trim(), password,
     options: {
       data: {
         full_name: fullName.trim(),
         ...(trimmedDesignation ? { designation: trimmedDesignation } : {}),
+        ...(trimmedDepartment ? { department_id: trimmedDepartment } : {}),
       },
       emailRedirectTo: `${window.location.origin}/dashboard`,
     },
   })
   if (error) throw error
-  if (data?.user?.id && trimmedDesignation) {
+  if (data?.user?.id && (trimmedDesignation || trimmedDepartment)) {
     try {
-      await saveEmployee(data.user.id, { designation: trimmedDesignation })
+      await saveEmployee(data.user.id, {
+        ...(trimmedDesignation ? { designation: trimmedDesignation } : {}),
+        ...(trimmedDepartment ? { department_id: trimmedDepartment } : {}),
+      })
     } catch {
       // Best-effort in case database administration RPC is pending
     }

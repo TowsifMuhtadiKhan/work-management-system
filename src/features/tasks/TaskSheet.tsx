@@ -33,14 +33,14 @@ import { CaptionEditor } from './CaptionEditor'
 import { ContentSourceIcon } from '@/components/common/ContentSourceIcon'
 
 type Option = { id: string; label: string; color?: string | null }
-type Props = { tasks: Task[]; profile: Profile; workDate: string; mine: boolean }
+type Props = { tasks: Task[]; profile: Profile; workDate: string; mine: boolean; departmentId?: string }
 const CellEditorContext = createContext<{
   host: HTMLDivElement | null;
   selected: string | null;
   select: (id: string) => void;
 }>({ host: null, selected: null, select: () => {} })
 
-export function TaskSheet({ tasks, profile, workDate, mine }: Props) {
+export function TaskSheet({ tasks, profile, workDate, mine, departmentId }: Props) {
   const queryClient = useQueryClient()
   const [history, setHistory] = useState<Task | null>(null)
   const [deletingTask, setDeletingTask] = useState<Task | null>(null)
@@ -53,8 +53,15 @@ export function TaskSheet({ tasks, profile, workDate, mine }: Props) {
   const types = useQuery({ queryKey: ['task-types'], queryFn: fetchTaskTypes })
   const channels = useQuery({ queryKey: ['channels'], queryFn: fetchChannels })
   const ads = useQuery({ queryKey: ['marketing-ads'], queryFn: fetchMarketingAds })
+
+  const rawPeople = people.data ?? []
+  const filteredPeople = departmentId
+    ? rawPeople.filter(p => p.department_id === departmentId)
+    : rawPeople
+  const assignablePeople = filteredPeople.length > 0 ? filteredPeople : rawPeople
+
   const catalogs = {
-    assigned_to: (people.data ?? []).map(p => ({ id: p.id, label: p.full_name })),
+    assigned_to: assignablePeople.map(p => ({ id: p.id, label: p.full_name })),
     task_type_id: (types.data ?? []).map(t => ({ id: t.id, label: t.name, color: t.color_hex })),
     channel_id: (channels.data ?? []).map(c => ({ id: c.id, label: c.name, color: c.color_hex })),
     marketing_ad_id: (ads.data ?? []).map(a => ({ id: a.id, label: a.advertiser })),

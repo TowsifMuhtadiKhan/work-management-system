@@ -55,7 +55,23 @@ function backend() {
       }
       if (table === 'content_packages' && result.status === 'approved') {
         result.task_id = 'task-content-1'
-        tables.tasks.push({ id: result.task_id, source_content_id: result.id, file_name: result.package_name, caption: result.caption, assigned_to: result.assigned_to, task_type_id: result.task_type_id, work_date: result.work_date, time_slot: result.time_slot, status: 'pending', priority: 'normal', created_at: new Date().toISOString() })
+        const creator = profiles.find(p => p.id === result.creator_id)
+        const creatorName = creator?.full_name ?? 'Creator'
+        const remarkText = result.thumbnail_url ? `${creatorName} Thumb: ${result.thumbnail_url}` : creatorName
+        tables.tasks.push({
+          id: result.task_id,
+          source_content_id: result.id,
+          file_name: result.package_name,
+          caption: result.caption,
+          remarks: remarkText,
+          assigned_to: result.assigned_to,
+          task_type_id: result.task_type_id,
+          work_date: result.work_date,
+          time_slot: result.time_slot,
+          status: 'pending',
+          priority: 'normal',
+          created_at: new Date().toISOString()
+        })
       }
       return respond(enrich(table, result))
     })
@@ -71,11 +87,14 @@ test('creator submits, receives feedback, revises, and selected approver creates
   await page.getByLabel('PKG name').first().fill('Evening news package')
   await expect(page.locator('tbody tr')).toHaveCount(2)
   await expect(page.getByLabel('PKG name').first()).toBeFocused()
+  await page.getByLabel('Script', { exact: true }).first().fill('https://docs.google.com/document/d/script1')
   await page.getByLabel('Approver', { exact: true }).first().selectOption(approverId)
   await page.getByLabel('Caption', { exact: true }).first().fill('Original caption')
+  await page.getByPlaceholder('https://…').first().fill('https://example.com/thumb.jpg')
   await page.getByRole('combobox', { name: 'Status', exact: true }).first().selectOption('submitted')
   await page.getByRole('button', { name: 'Save and submit' }).first().click()
   await expect(page.getByRole('combobox', { name: 'Status', exact: true }).first()).toBeDisabled()
+  expect(mock.tables.content_packages[0].script).toBe('https://docs.google.com/document/d/script1')
   expect(mock.tables.tasks).toHaveLength(0)
 
   const context = await browser.newContext({ baseURL })
@@ -104,11 +123,13 @@ test('creator submits, receives feedback, revises, and selected approver creates
     await expect(reviewer.getByRole('dialog')).toBeHidden()
     expect(mock.tables.tasks).toHaveLength(1)
     expect(mock.tables.tasks[0].caption).toBe('Short caption')
+    expect(mock.tables.tasks[0].remarks).toBe('Content Creator Thumb: https://example.com/thumb.jpg')
     await reviewer.getByRole('button', { name: 'View details' }).click()
     await reviewer.getByRole('link', { name: /View Daily Task/ }).click()
     await expect(reviewer).toHaveURL(/tasks\?date=2026-10-01/)
     const section = reviewer.getByRole('region', { name: '8:00 AM', exact: true })
     await expect(section.getByLabel('file name', { exact: true })).toHaveValue('Evening news package')
+    await expect(section.getByLabel('remarks', { exact: true })).toHaveValue('Content Creator Thumb: https://example.com/thumb.jpg')
     await expect(section.locator('tbody tr').first().locator('td').first().getByRole('link', { name: 'From Content Creator' })).toBeVisible()
     await section.getByRole('link', { name: 'From Content Creator' }).click()
     await expect(reviewer.getByRole('dialog')).toBeVisible()
