@@ -31,7 +31,6 @@ export const catalogConfig: Record<Catalog, CatalogConfig> = {
     fields: [
       { key: 'name', label: 'Name', required: true },
       { key: 'platform', label: 'Platform', required: true },
-      { key: 'color_hex', label: 'Color', type: 'color' },
     ],
   },
   marketing_ads: {

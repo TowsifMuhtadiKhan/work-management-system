@@ -67,6 +67,7 @@ export function DashboardPage() {
 
   const { data: marketingProgress = [] } = useQuery({
     queryKey: ['marketing-progress', today],
+    queryFn: () => fetchMarketingProgress(today),
   })
 
   // Aggregate employee stats

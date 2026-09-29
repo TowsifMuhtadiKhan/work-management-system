@@ -5,9 +5,17 @@ import type { CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Check, ChevronDown, History, Loader2, Save, Trash2, X } from 'lucide-react'
+import { Check, ChevronDown, History, Loader2, MoreVertical, Save, Trash2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { cn } from '@/utils/cn'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { fetchAssignableProfiles } from '@/services/profiles.service'
 import { fetchTaskTypes } from '@/services/taskTypes.service'
 import { fetchChannels } from '@/services/channels.service'
@@ -60,12 +68,21 @@ export function TaskSheet({ tasks, profile, workDate, mine, departmentId }: Prop
     : rawPeople
   const assignablePeople = filteredPeople.length > 0 ? filteredPeople : rawPeople
 
+  const STATUS_COLORS: Record<string, string> = {
+    pending: '#b45309',
+    assigned: '#1d4ed8',
+    in_progress: '#d97706',
+    done: '#047857',
+    hold: '#c2410c',
+    cancelled: '#e11d48',
+  }
+
   const catalogs = {
     assigned_to: assignablePeople.map(p => ({ id: p.id, label: p.full_name })),
     task_type_id: (types.data ?? []).map(t => ({ id: t.id, label: t.name, color: t.color_hex })),
     channel_id: (channels.data ?? []).map(c => ({ id: c.id, label: c.name, color: c.color_hex })),
     marketing_ad_id: (ads.data ?? []).map(a => ({ id: a.id, label: a.advertiser })),
-    status: Object.entries(TASK_STATUS_LABELS).map(([id, label]) => ({ id, label })),
+    status: Object.entries(TASK_STATUS_LABELS).map(([id, label]) => ({ id, label, color: STATUS_COLORS[id] })),
     priority: Object.entries(TASK_PRIORITY_LABELS).map(([id, label]) => ({ id, label })),
   }
   return <CellEditorContext.Provider value={{ host: editorHost, selected: selectedCell, select: setSelectedCell }}><div className="task-sheet p-2 sm:p-4 space-y-4">
@@ -94,7 +111,7 @@ export function TaskSheet({ tasks, profile, workDate, mine, departmentId }: Prop
         </div>
         <div id={contentId} hidden={isCollapsed}>
         {(rows.length || canCreate) ? <div className="overflow-x-auto"><table className="responsive-sheet w-full text-xs">
-          <thead className="sheet-columns"><tr><th scope="col" className="w-10 px-1"><span className="sr-only">Source</span></th>{['File name', 'Type', 'Assigned person', 'Status', 'Channel / Page', 'Marketing ad', 'Remarks', 'Caption', 'YouTube link', 'Facebook link', 'Priority', 'Actions'].map(label => <th key={label} className={`text-left px-2 py-1.5 whitespace-nowrap font-extrabold ${label === 'Actions' ? 'sheet-actions' : ''}`}><span className="inline-flex items-center gap-1.5">{(label === 'YouTube link' || label === 'Facebook link') && <PlatformIcon platform={label} />}{label}</span></th>)}</tr></thead>
+          <thead className="sheet-columns"><tr><th scope="col" className="w-10 px-1"><span className="sr-only">Source</span></th>{['File name', 'Type', 'Assigned person', 'Status', 'Channel / Page', 'Marketing ad', 'Remarks', 'Caption', 'YouTube link', 'Facebook link', 'Priority', 'Actions'].map(label => <th key={label} className={`text-left px-2 py-1.5 whitespace-nowrap font-extrabold ${label === 'Actions' ? 'sheet-actions w-[68px] min-w-[68px] max-w-[68px] text-center whitespace-nowrap' : ''}`}><span className="inline-flex items-center gap-1.5">{(label === 'YouTube link' || label === 'Facebook link') && <PlatformIcon platform={label} />}{label}</span></th>)}</tr></thead>
           <tbody>{rows.map(task => <SheetRow key={task.id} task={task} slot={slot} profile={profile} workDate={workDate} mine={mine} catalogs={catalogs} editable={permissions.canEditTask(task.assigned_to, task.assigned_profile)} onHistory={() => setHistory(task)} onDelete={() => setDeletingTask(task)} />)}
             {canCreate && <DraftRows key={`${workDate}-${mine}-${profile.id}`} slot={slot} profile={profile} workDate={workDate} mine={mine} catalogs={catalogs} editable />}
           </tbody>
@@ -166,6 +183,112 @@ function DraftRows(props: RowProps) {
   />)}</>
 }
 
+function SheetDropdown({
+  field,
+  value,
+  options,
+  disabled,
+  canComplete,
+  completionError,
+  onChange,
+  placeholder = 'Select…',
+  fallbackColor,
+}: {
+  field: string
+  value: string
+  options: Option[]
+  disabled: boolean
+  canComplete: boolean
+  completionError?: string | null
+  onChange: (val: string) => void
+  placeholder?: string
+  fallbackColor?: string | null
+}) {
+  const currentOption = options.find(o => o.id === value)
+  const displayLabel = currentOption?.label || (value ? value : placeholder)
+
+  const activeColor = (field === 'task_type_id' || field === 'channel_id')
+    ? (currentOption?.color || fallbackColor || null)
+    : null
+
+  const colorStyle = activeColor ? {
+    backgroundColor: `${activeColor}18`,
+    borderColor: `${activeColor}88`,
+    color: activeColor,
+    fontWeight: 600,
+  } : undefined
+
+  const widthClass =
+    field === 'status' ? 'w-[108px] min-w-[108px] max-w-[108px]' :
+    field === 'task_type_id' ? 'w-[114px] min-w-[114px] max-w-[114px]' :
+    field === 'marketing_ad_id' ? 'w-[124px] min-w-[124px] max-w-[124px]' :
+    field === 'priority' ? 'w-24 min-w-24 max-w-24' :
+    'min-w-32 max-w-44'
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          disabled={disabled}
+          data-field={field}
+          data-value={value}
+          aria-label={field.replaceAll('_', ' ')}
+          title={displayLabel}
+          style={colorStyle}
+          className={cn(
+            'sheet-select h-9 flex items-center justify-between gap-1 rounded-md px-2.5 text-xs font-medium border bg-background text-foreground transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-60 disabled:cursor-not-allowed',
+            widthClass
+          )}
+        >
+          <span className="truncate">{displayLabel}</span>
+          <ChevronDown className="h-3.5 w-3.5 opacity-50 shrink-0 ml-1" aria-hidden="true" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="start"
+        className="min-w-[150px] max-h-64 overflow-y-auto rounded-xl p-1 shadow-lg border bg-popover text-popover-foreground z-50"
+      >
+        <DropdownMenuItem
+          className="flex items-center justify-between py-1.5 px-3 text-xs cursor-pointer rounded-lg hover:bg-accent focus:bg-accent"
+          onSelect={() => onChange('')}
+          onClick={() => onChange('')}
+        >
+          <span className="text-muted-foreground">{placeholder}</span>
+          {!value && <Check className="h-4 w-4 text-blue-600 dark:text-blue-400" aria-hidden="true" />}
+        </DropdownMenuItem>
+        {options.map(o => {
+          const isSelected = value === o.id
+          const isOptionDisabled = field === 'status' && o.id === 'done' && (!canComplete || !!completionError)
+          return (
+            <DropdownMenuItem
+              key={o.id}
+              disabled={isOptionDisabled}
+              className="flex items-center justify-between py-1.5 px-3 text-xs cursor-pointer rounded-lg hover:bg-accent focus:bg-accent disabled:opacity-40 disabled:cursor-not-allowed"
+              onSelect={() => onChange(o.id)}
+              onClick={() => onChange(o.id)}
+            >
+              <span
+                className="font-medium truncate mr-2"
+                style={o.color ? { color: o.color, fontWeight: 600 } : undefined}
+              >
+                {o.label}
+              </span>
+              {isSelected && (
+                <Check
+                  className={cn('h-4 w-4 shrink-0', !o.color && 'text-blue-600 dark:text-blue-400')}
+                  style={o.color ? { color: o.color } : undefined}
+                  aria-hidden="true"
+                />
+              )}
+            </DropdownMenuItem>
+          )
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
 function SheetRow({ task, slot, profile, workDate, mine, catalogs, editable, onRemove, onHistory, onStartEditing, onDelete }: RowProps) {
   const cellEditor = useContext(CellEditorContext)
   const rowId = useId()
@@ -221,73 +344,151 @@ function SheetRow({ task, slot, profile, workDate, mine, catalogs, editable, onR
     <td data-label="Source" className="p-1.5"><ContentSourceIcon packageId={task?.source_content_id} /></td>
     {fields.map(field => {
       const value = String(form[field] ?? '')
-      const options = catalogs[field]
+      const rawOptions = catalogs[field]
+      const options = rawOptions ? [...rawOptions] : undefined
+      if (options && value && !options.some(o => o.id === value)) {
+        const fallback = field === 'assigned_to' ? task?.assigned_profile?.full_name ?? profile.full_name :
+          field === 'task_type_id' ? task?.task_type?.name ?? value :
+          field === 'channel_id' ? task?.channel?.name ?? value :
+          task?.marketing_ad?.advertiser ?? value
+        options.unshift({ id: value, label: fallback })
+      }
       const disabled = !editable || saving || (mine && field === 'assigned_to')
-      const selectedOption = options?.find(o => o.id === value)
-      const fieldColor = (field === 'task_type_id' || field === 'channel_id') ? (selectedOption?.color || (field === 'task_type_id' ? task?.task_type?.color_hex : task?.channel?.color_hex)) : null
-      const colorStyle = fieldColor ? {
-        backgroundColor: `${fieldColor}18`,
-        borderColor: `${fieldColor}88`,
-        color: fieldColor,
-        fontWeight: 600,
-      } : undefined
+      const fieldColor = (field === 'task_type_id' || field === 'channel_id')
+        ? (field === 'task_type_id' ? task?.task_type?.color_hex : task?.channel?.color_hex)
+        : null
       return <td key={field} data-label={field.replaceAll('_', ' ')} className="p-1.5">
-        {field === 'caption' ? <CaptionEditor value={value} disabled={disabled} onChange={caption => handleChange("caption", caption)} /> : options ? <select data-field={field} data-value={value} aria-label={field.replaceAll('_', ' ')} style={colorStyle} className={`sheet-select h-9 ${field === 'status' ? 'w-[120px] min-w-[120px] max-w-[120px]' : field === 'priority' ? 'w-24 min-w-24 max-w-24' : 'min-w-36 max-w-52'} rounded-md border px-2 font-medium disabled:opacity-60`} value={value} disabled={disabled} onChange={e => handleChange(field, e.target.value)}>
-          <option value="">Select…</option>
-          {value && !options.some(o => o.id === value) && <option value={value}>{field === 'assigned_to' ? task?.assigned_profile?.full_name ?? profile.full_name : field === 'task_type_id' ? task?.task_type?.name ?? value : field === 'channel_id' ? task?.channel?.name ?? value : task?.marketing_ad?.advertiser ?? value}</option>}
-          {options.map(o => <option key={o.id} value={o.id} style={o.color ? { color: o.color, fontWeight: 600 } : undefined} disabled={field === 'status' && o.id === 'done' && (!canComplete || !!completionError)}>{o.label}</option>)}
-        </select> : <>
-          <Input data-cell-editor={disabled ? undefined : true} aria-label={field.replaceAll('_', ' ')} title={value} className={`${field === 'file_name' ? 'min-w-64' : 'min-w-48'} text-xs ${cellEditor.selected === rowId && focusedField === field ? 'ring-2 ring-indigo-500 bg-indigo-50 dark:bg-indigo-950/30' : ''}`} value={value} readOnly={disabled} onFocus={() => { if (!disabled) { setFocusedField(field); cellEditor.select(rowId) } }} onChange={e => handleChange(field, e.target.value)} />
-          {cellEditor.host && cellEditor.selected === rowId && focusedField === field && createPortal(<div className="space-y-2">
-            <div className="flex flex-wrap items-center justify-between gap-2 text-xs"><label htmlFor={`${rowId}-full-cell`} className="font-semibold text-indigo-700 dark:text-indigo-300">{field.replaceAll('_', ' ')} · {slotLabel(slot)}</label><span className="text-muted-foreground">{disabled ? 'Read only' : 'Changes apply to this row. Click Save when finished.'}</span></div>
-            <textarea id={`${rowId}-full-cell`} aria-label={`Full ${field.replaceAll('_', ' ')}`} value={value} readOnly={disabled} rows={3} className="w-full resize-y rounded-md border bg-background p-2 text-sm leading-relaxed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500" style={{ overflowWrap: 'anywhere' }} onChange={e => handleChange(field, e.target.value.replace(/[\r\n]+/g, field === 'remarks' ? '\n' : ' '))} />
-          </div>, cellEditor.host)}
-        </>}
+        {field === 'caption' ? (
+          <CaptionEditor value={value} disabled={disabled} onChange={caption => handleChange("caption", caption)} />
+        ) : options ? (
+          <SheetDropdown
+            field={field}
+            value={value}
+            options={options}
+            disabled={disabled}
+            canComplete={canComplete}
+            completionError={completionError}
+            fallbackColor={fieldColor}
+            onChange={val => handleChange(field, val)}
+          />
+        ) : (
+          <>
+            <Input data-cell-editor={disabled ? undefined : true} aria-label={field.replaceAll('_', ' ')} title={value} className={`${field === 'file_name' ? 'min-w-64' : 'min-w-48'} text-xs ${cellEditor.selected === rowId && focusedField === field ? 'ring-2 ring-indigo-500 bg-indigo-50 dark:bg-indigo-950/30' : ''}`} value={value} readOnly={disabled} onFocus={() => { if (!disabled) { setFocusedField(field); cellEditor.select(rowId) } }} onChange={e => handleChange(field, e.target.value)} />
+            {cellEditor.host && cellEditor.selected === rowId && focusedField === field && createPortal(<div className="space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs"><label htmlFor={`${rowId}-full-cell`} className="font-semibold text-indigo-700 dark:text-indigo-300">{field.replaceAll('_', ' ')} · {slotLabel(slot)}</label><span className="text-muted-foreground">{disabled ? 'Read only' : 'Changes apply to this row. Click Save when finished.'}</span></div>
+              <textarea id={`${rowId}-full-cell`} aria-label={`Full ${field.replaceAll('_', ' ')}`} value={value} readOnly={disabled} rows={3} className="w-full resize-y rounded-md border bg-background p-2 text-sm leading-relaxed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500" style={{ overflowWrap: 'anywhere' }} onChange={e => handleChange(field, e.target.value.replace(/[\r\n]+/g, field === 'remarks' ? '\n' : ' '))} />
+            </div>, cellEditor.host)}
+          </>
+        )}
       </td>
     })}
-    <td data-label="Actions" className="sheet-actions p-2"><div className="flex w-[108px] flex-wrap items-center gap-1 [&>*]:shrink-0">
-      {task && canComplete && task.status !== 'done' && (
-        <span
-          className="inline-flex cursor-pointer"
-          onClick={() => {
-            if (dirty) toast.warning('Save or cancel row edits before marking done.')
-            else if (completionError) toast.error(completionError)
-          }}
-        >
-          <Button
-            size="icon"
-            aria-label="Mark as done"
-            className="h-8 w-8 bg-emerald-700 hover:bg-emerald-800 text-white disabled:pointer-events-none"
-            disabled={saving || dirty || !!completionError}
-            title={completionError ?? (dirty ? 'Save or cancel row edits before marking done' : 'Complete your assigned task')}
-            onClick={async () => {
-              setSaving(true); setError('')
-              try { await markTaskDone(task.id, profile.id); await refresh(); toast.success('Task marked as done') }
-              catch { notifyError('Unable to mark done. The task may have been reassigned. Refresh and try again.') }
-              finally { setSaving(false) }
-            }}
-          >
-            <Check className="h-4 w-4" aria-hidden="true" />
-          </Button>
-        </span>
-      )}
-      {task?.status === 'done' && <span role="img" aria-label="Done" title="Done" className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-emerald-700 text-white"><Check className="h-4 w-4" aria-hidden="true" /></span>}
-      {editable && (dirty || !task) && <Button className="h-6 w-6 bg-emerald-700 hover:bg-emerald-800 text-white" size="icon" aria-label="Save" title="Save changes" disabled={saving || !dirty} onClick={() => void save()}>{saving ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /> : <Save className="h-3 w-3" aria-hidden="true" />}</Button>}
-      {(dirty || !task) && <Button size="icon" className="h-6 w-6 text-muted-foreground" aria-label="Cancel" title="Discard changes" variant="ghost" disabled={saving || !dirty} onClick={() => { setChanges({}); setError(''); onRemove?.() }}><X className="h-3 w-3" aria-hidden="true" /></Button>}
-      {task && <Button size="icon" className="h-8 w-8 text-indigo-600 hover:text-indigo-700 dark:text-indigo-300" variant="ghost" title="History" aria-label="History" onClick={onHistory}><History className="h-4 w-4" aria-hidden="true" /></Button>}
-      {task && !task.source_content_id && profile.application_role === 'administrator' && (
-        <Button
-          size="icon"
-          className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-950/40"
-          variant="ghost"
-          title="Delete"
-          aria-label="Delete"
-          disabled={saving}
-          onClick={onDelete}
-        >
-          <Trash2 className="h-4 w-4" aria-hidden="true" />
-        </Button>
-      )}
-    </div>{dirty && <p className="text-amber-700 dark:text-amber-300 text-[10px] font-semibold mt-1">Unsaved changes</p>}{error && <p role="alert" className="sr-only">{error}</p>}</td>
+    <td data-label="Actions" className="sheet-actions p-1 text-center w-[68px] min-w-[68px] max-w-[68px]">
+      <div className="flex items-center justify-center">
+        {(task || editable) && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="relative h-7 w-7 text-muted-foreground hover:bg-muted hover:text-foreground"
+                aria-label="Actions"
+                title={dirty ? 'Actions (unsaved changes)' : 'Actions'}
+              >
+                {saving ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-hidden="true" />
+                ) : (
+                  <span className="relative inline-flex items-center justify-center">
+                    <MoreVertical className="h-4 w-4" aria-hidden="true" />
+                    {dirty && (
+                      <span
+                        className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-amber-400 ring-1.5 ring-background"
+                        aria-hidden="true"
+                      />
+                    )}
+                  </span>
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-40 rounded-xl p-1 shadow-lg border bg-popover text-popover-foreground z-50">
+              {editable && (dirty || !task) && (
+                <>
+                  <DropdownMenuItem
+                    className="text-xs font-medium text-emerald-600 focus:text-emerald-700 focus:bg-emerald-50 dark:focus:bg-emerald-950/40 cursor-pointer rounded-lg"
+                    disabled={saving || !dirty}
+                    onClick={() => void save()}
+                  >
+                    <Save className="mr-2 h-3.5 w-3.5 text-emerald-600" aria-hidden="true" />
+                    Save
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="text-xs text-muted-foreground hover:text-foreground cursor-pointer rounded-lg"
+                    disabled={saving || !dirty}
+                    onClick={() => { setChanges({}); setError(''); onRemove?.() }}
+                  >
+                    <X className="mr-2 h-3.5 w-3.5" aria-hidden="true" />
+                    Discard
+                  </DropdownMenuItem>
+                  {task && <DropdownMenuSeparator />}
+                </>
+              )}
+              {task && canComplete && task.status !== 'done' && (
+                <DropdownMenuItem
+                  className="text-xs font-medium text-emerald-600 focus:text-emerald-700 focus:bg-emerald-50 dark:focus:bg-emerald-950/40 cursor-pointer rounded-lg"
+                  disabled={saving || dirty || !!completionError}
+                  onClick={async () => {
+                    if (dirty) {
+                      toast.warning('Save or cancel row edits before marking done.')
+                      return
+                    }
+                    if (completionError) {
+                      toast.error(completionError)
+                      return
+                    }
+                    setSaving(true)
+                    setError('')
+                    try {
+                      await markTaskDone(task.id, profile.id)
+                      await refresh()
+                      toast.success('Task marked as done')
+                    } catch {
+                      notifyError('Unable to mark done. The task may have been reassigned. Refresh and try again.')
+                    } finally {
+                      setSaving(false)
+                    }
+                  }}
+                >
+                  <Check className="mr-2 h-3.5 w-3.5 text-emerald-600" aria-hidden="true" />
+                  Mark as done
+                </DropdownMenuItem>
+              )}
+              {task && (
+                <DropdownMenuItem
+                  className="text-xs cursor-pointer rounded-lg"
+                  onClick={onHistory}
+                >
+                  <History className="mr-2 h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" aria-hidden="true" />
+                  History
+                </DropdownMenuItem>
+              )}
+              {task && !task.source_content_id && profile.application_role === 'administrator' && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="text-xs text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer rounded-lg"
+                    disabled={saving}
+                    onClick={onDelete}
+                  >
+                    <Trash2 className="mr-2 h-3.5 w-3.5" aria-hidden="true" />
+                    Delete
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+        {dirty && <span className="sr-only">Unsaved changes</span>}
+        {error && <p role="alert" className="sr-only">{error}</p>}
+      </div>
+    </td>
   </tr>
 }

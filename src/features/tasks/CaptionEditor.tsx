@@ -9,9 +9,19 @@ import { captionHTML, captionText, serializeCaption } from '@/utils/caption'
 
 export function CaptionEditor({ value, onChange, disabled = false }: { value: string; onChange: (value: string) => void; disabled?: boolean }) {
   const [open, setOpen] = useState(false)
+  const text = captionText(value)
   return <>
-    <button type="button" aria-label={disabled ? 'View caption' : 'Edit caption'} onClick={() => setOpen(true)} className="flex w-full min-w-56 max-w-80 items-start gap-2 rounded-md border border-violet-200 bg-violet-50/60 p-2 text-left text-xs text-violet-950 hover:bg-violet-100 dark:border-violet-800 dark:bg-violet-950/30 dark:text-violet-100">
-      <Pencil className="h-3.5 w-3.5 shrink-0 mt-0.5" /><span className="line-clamp-2 whitespace-pre-wrap break-words">{captionText(value) || 'Write a caption...'}</span>
+    <button
+      type="button"
+      aria-label={disabled ? 'View caption' : 'Edit caption'}
+      onClick={() => setOpen(true)}
+      title={text || 'Write a caption...'}
+      className="flex h-9 w-full min-w-36 max-w-56 items-center gap-2 rounded-md border border-input bg-background px-2.5 text-left text-xs hover:bg-muted/50 transition-colors whitespace-nowrap"
+    >
+      <Pencil className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+      <span className={`truncate whitespace-nowrap ${text ? 'font-medium text-foreground' : 'text-muted-foreground font-normal'}`}>
+        {text || 'Write a caption...'}
+      </span>
     </button>
     {open && <CaptionDialog value={value} disabled={disabled} onClose={() => setOpen(false)} onApply={next => { onChange(next); setOpen(false) }} />}
   </>

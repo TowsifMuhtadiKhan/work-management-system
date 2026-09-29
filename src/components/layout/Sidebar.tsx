@@ -78,9 +78,8 @@ export function Sidebar({ profile, className, collapsed = false }: SidebarProps)
     return allowedFeatures.includes(featureId)
   }
 
-  const showMyTasks = isFeatureAllowed('my_tasks')
   const showDailyTasks = isFeatureAllowed('daily_tasks')
-  const showTasksMenu = showMyTasks || showDailyTasks
+  const showTasksMenu = showDailyTasks
 
   return (
     <aside className={cn('flex flex-col h-full min-h-0 bg-sidebar text-sidebar-foreground border-r border-sidebar-border transition-all duration-200', collapsed ? 'w-20' : 'w-60', className)}>
@@ -114,7 +113,6 @@ export function Sidebar({ profile, className, collapsed = false }: SidebarProps)
               {item.href === '/dashboard' && showTasksMenu && (
                 <TasksMenu
                   collapsed={collapsed}
-                  showMyTasks={showMyTasks}
                   showDailyTasks={showDailyTasks}
                 />
               )}
@@ -124,7 +122,6 @@ export function Sidebar({ profile, className, collapsed = false }: SidebarProps)
           {!isFeatureAllowed('dashboard') && showTasksMenu && (
             <TasksMenu
               collapsed={collapsed}
-              showMyTasks={showMyTasks}
               showDailyTasks={showDailyTasks}
             />
           )}
@@ -155,21 +152,18 @@ export function Sidebar({ profile, className, collapsed = false }: SidebarProps)
 
 function TasksMenu({
   collapsed,
-  showMyTasks = true,
   showDailyTasks = true,
 }: {
   collapsed: boolean
-  showMyTasks?: boolean
   showDailyTasks?: boolean
 }) {
   const submenuId = useId()
   const { pathname } = useLocation()
-  const isActive = pathname === '/tasks' || pathname === '/my-tasks'
+  const isActive = pathname === '/tasks'
   const [expanded, setExpanded] = useState(true)
 
   if (collapsed) return (
     <div className="space-y-1 mt-1">
-      {showMyTasks && <SidebarNavLink collapsed item={{ label: 'My Task', shortLabel: 'My Task', href: '/my-tasks', icon: ClipboardList }} />}
       {showDailyTasks && <SidebarNavLink collapsed item={{ label: 'Daily Task', shortLabel: 'Daily', href: '/tasks', icon: CalendarDays }} />}
     </div>
   )
@@ -190,7 +184,6 @@ function TasksMenu({
         <ChevronRight className={cn('h-3 w-3 transition-transform', expanded && 'rotate-90')} />
       </button>
       <div id={submenuId} hidden={!expanded} className="ml-5 border-l border-sidebar-border pl-2 space-y-0.5">
-        {showMyTasks && <SidebarNavLink item={{ label: 'My Task', href: '/my-tasks', icon: ClipboardList }} />}
         {showDailyTasks && <SidebarNavLink item={{ label: 'Daily Task', href: '/tasks', icon: CalendarDays }} />}
       </div>
     </div>

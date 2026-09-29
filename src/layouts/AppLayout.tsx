@@ -21,10 +21,6 @@ export function AppLayout() {
     setSidebarCollapsed(next)
     try { localStorage.setItem('sidebar-collapsed', String(next)) } catch { /* Keep the toggle usable when storage is unavailable. */ }
   }
-  const [isDark, setIsDark] = useState(() => {
-    return document.documentElement.classList.contains('dark')
-  })
-
   // Redirect unauthenticated users to login
   useEffect(() => {
     if (!authLoading && !user) {
@@ -32,18 +28,11 @@ export function AppLayout() {
     }
   }, [authLoading, user, navigate])
 
-  // Persist dark mode preference
-  const toggleDark = () => {
-    const next = !isDark
-    setIsDark(next)
-    if (next) {
-      document.documentElement.classList.add('dark')
-      localStorage.setItem('theme', 'dark')
-    } else {
-      document.documentElement.classList.remove('dark')
-      localStorage.setItem('theme', 'light')
-    }
-  }
+  // Ensure dark mode class and storage are cleared
+  useEffect(() => {
+    document.documentElement.classList.remove('dark')
+    try { localStorage.removeItem('theme') } catch {}
+  }, [])
 
   if (authLoading) {
     return (
@@ -75,8 +64,6 @@ export function AppLayout() {
       <div className="relative flex-1 flex flex-col min-w-0 overflow-hidden">
         <TopHeader
           profile={profile ?? null}
-          isDark={isDark}
-          onToggleDark={toggleDark}
           onOpenMenu={() => setMenuOpen(true)}
           menuOpen={menuOpen}
           sidebarCollapsed={sidebarCollapsed}

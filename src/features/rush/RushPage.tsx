@@ -1,6 +1,6 @@
-﻿import { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Save, X } from 'lucide-react'
+import { Loader2, Save, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -78,10 +78,28 @@ function RushRow({ entry, userId, names, namesUnavailable, editable, unavailable
     </select></td>
     <td data-label="Actions" className="border border-slate-400 p-2">
       {editable && (dirty || !entry) && <div className="flex gap-1">
-        <Button size="icon" className="h-7 w-7 bg-emerald-700 hover:bg-emerald-800 text-white" aria-label="Save" title="Save row" disabled={!dirty || unavailable || mutation.isPending || Object.values(values).some(value => !value.trim())} onClick={() => mutation.mutate()}><Save className="h-3.5 w-3.5" /></Button>
-        <Button size="icon" variant="ghost" className="h-7 w-7" aria-label="Cancel" title="Discard changes" disabled={!dirty || mutation.isPending} onClick={() => { setChanges({}); setError(''); onRemove?.() }}><X className="h-3.5 w-3.5" /></Button>
+        <Button
+          size="icon"
+          variant="ghost"
+          className="relative h-7 w-7 text-foreground/80 hover:bg-muted hover:text-foreground"
+          aria-label="Save"
+          title="Save row"
+          disabled={!dirty || unavailable || mutation.isPending || Object.values(values).some(value => !value.trim())}
+          onClick={() => mutation.mutate()}
+        >
+          {mutation.isPending ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <span className="relative inline-flex items-center justify-center">
+              <Save className="h-3.5 w-3.5" />
+              {dirty && (
+                <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-amber-400 ring-1.5 ring-background" />
+              )}
+            </span>
+          )}
+        </Button>
+        <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Cancel" title="Discard changes" disabled={!dirty || mutation.isPending} onClick={() => { setChanges({}); setError(''); onRemove?.() }}><X className="h-3.5 w-3.5" /></Button>
       </div>}
-      {dirty && <p className="mt-1 text-[10px] text-amber-700">Unsaved changes</p>}
       {error && <p role="alert" className="mt-2 text-xs text-destructive">{error}</p>}
     </td>
   </tr>

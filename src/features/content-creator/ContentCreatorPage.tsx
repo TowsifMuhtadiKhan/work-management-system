@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { createContext, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Clapperboard } from 'lucide-react'
+import { Clapperboard, SlidersHorizontal, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -14,9 +14,16 @@ import { CONTENT_STATUS_LABELS, fetchContentPackages, fetchContentReviews, revie
 import type { ApprovalValues, ContentPackage, PackageValues } from '@/services/contentPackages.service'
 import { todayISO } from '@/utils/date'
 import { TIME_SLOTS, slotLabel } from '@/features/tasks/timeSlots'
+import { cn } from '@/utils/cn'
 
 import { SheetDraftRows } from '@/components/common/SheetDraftRows'
 import { ContentPackageRow } from './ContentPackageRow'
+
+export const ContentCellEditorContext = createContext<{
+  host: HTMLDivElement | null
+  selected: string | null
+  select: (id: string | null) => void
+}>({ host: null, selected: null, select: () => {} })
 
 const fieldClass = 'w-full rounded-md border bg-background px-3 py-2 text-sm disabled:opacity-60'
 
@@ -27,41 +34,207 @@ export function ContentCreatorPage() {
   const [params, setParams] = useSearchParams()
   const people = useQuery({ queryKey: ['assignable-profiles'], queryFn: fetchAssignableProfiles, enabled: !!user })
   const [view, setView] = useState('all')
+  const [search, setSearch] = useState('')
+  const [showFilters, setShowFilters] = useState(false)
+  const [creatorFilter, setCreatorFilter] = useState('all')
+  const [approverFilter, setApproverFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [editorHost, setEditorHost] = useState<HTMLDivElement | null>(null)
+  const [selectedCell, setSelectedCell] = useState<string | null>(null)
   const client = useQueryClient()
   const query = useQuery({ queryKey: ['content-packages', user?.id], queryFn: fetchContentPackages, enabled: !!user, refetchInterval: 30000 })
   const packages = query.data ?? []
   const selected = packages.find(entry => entry.id === params.get('package'))
-  const rows = packages.filter(entry => view === 'mine' ? entry.creator_id === user?.id : view === 'review' ? entry.approver_id === user?.id && entry.status === 'submitted' : true)
+
+  const activeFilterCount = (search.trim() ? 1 : 0) + (creatorFilter !== 'all' ? 1 : 0) + (approverFilter !== 'all' ? 1 : 0) + (statusFilter !== 'all' ? 1 : 0)
+  const clearFilters = () => {
+    setSearch('')
+    setCreatorFilter('all')
+    setApproverFilter('all')
+    setStatusFilter('all')
+  }
+
+  const rows = packages.filter(entry => {
+    if (view === 'mine' && entry.creator_id !== user?.id) return false
+    if (view === 'review' && (entry.approver_id !== user?.id || entry.status !== 'submitted')) return false
+
+    if (search.trim()) {
+      const q = search.toLowerCase()
+      const nameMatch = entry.package_name?.toLowerCase().includes(q)
+      const scriptMatch = entry.script?.toLowerCase().includes(q)
+      const captionMatch = entry.caption?.toLowerCase().includes(q)
+      const creatorMatch = entry.creator?.full_name?.toLowerCase().includes(q)
+      const approverMatch = entry.approver?.full_name?.toLowerCase().includes(q)
+      if (!nameMatch && !scriptMatch && !captionMatch && !creatorMatch && !approverMatch) return false
+    }
+
+    if (creatorFilter !== 'all' && entry.creator_id !== creatorFilter) return false
+    if (approverFilter !== 'all' && entry.approver_id !== approverFilter) return false
+    if (statusFilter !== 'all' && entry.status !== statusFilter) return false
+
+    return true
+  })
+
   const close = () => { setParams({}, { replace: true }) }
   const saved = () => {
     for (const key of ['content-packages', 'content-reviews', 'tasks', 'daily-stats', 'tasks-by-employee']) void client.invalidateQueries({ queryKey: [key] })
     close()
   }
-  return <div className="p-3 sm:p-6 space-y-5">
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <div><h1 className="text-xl font-bold">Content Creator</h1><p className="text-sm text-muted-foreground">Fill in a blank row, then save or send for approval. A new blank row appears as you type.</p></div>
-    </div>
-    <div className="flex flex-wrap items-center gap-2">
-      {([['all', 'All packages'], ['mine', 'My packages'], ['review', 'Awaiting my review']] as const).map(([value, label]) => <Button key={value} variant={view === value ? 'default' : 'outline'} aria-pressed={view === value} onClick={() => setView(value)}>{label}</Button>)}
-      <Button variant="outline" disabled={query.isFetching || people.isFetching} onClick={() => { void query.refetch(); void people.refetch() }}>Refresh</Button>
-    </div>
-    {query.isError && <p role="alert" className="text-destructive">Unable to load content packages. Your unsaved rows are kept here. Refresh to restore saving.</p>}
-    {query.isPending && <p role="status">Loading content packages...</p>}
-    {people.isError && <p role="alert" className="text-destructive">Unable to load approvers. Refresh to try again.</p>}
-      <div className="overflow-x-auto rounded-md border">
-        <table className="responsive-sheet w-full min-w-[1350px] table-fixed border-collapse text-sm">
-          <caption className="bg-red-600 px-4 py-3 text-xl font-bold text-white">CONTENT CREATOR PKG LIST</caption>
-          <thead className="bg-muted"><tr>{['PKG name', 'Creator name', 'Script', 'Approver', 'Status', 'Caption', 'Thumb', 'Actions'].map(label => <th scope="col" key={label} className="border px-3 py-2 text-left uppercase">{label}</th>)}</tr></thead>
-          <tbody>
-            {user && rows.map(entry => <ContentPackageRow key={entry.id} entry={entry} userId={user.id} canManage={isLead} people={people.data ?? []} unavailable={query.isError || query.isPending} onDetails={action => setParams({ package: entry.id, ...(action ? { action } : {}) })} />)}
-            {user && <SheetDraftRows>{actions => <ContentPackageRow userId={user.id} canManage={isLead} people={people.data ?? []} hidden={view === 'review'} unavailable={query.isError || query.isPending || people.isError || people.isPending} {...actions} />}</SheetDraftRows>}
-          </tbody>
-        </table>
+
+  return (
+    <ContentCellEditorContext.Provider value={{ host: editorHost, selected: selectedCell, select: setSelectedCell }}>
+      <div className="p-3 sm:p-6 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-bold">Content Creator</h1>
+            <p className="text-sm text-muted-foreground">Fill in a blank row, then save or send for approval. A new blank row appears as you type.</p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {([['all', 'All packages'], ['mine', 'My packages'], ['review', 'Awaiting my review']] as const).map(([value, label]) => (
+              <Button key={value} variant={view === value ? 'default' : 'outline'} aria-pressed={view === value} onClick={() => setView(value)}>
+                {label}
+              </Button>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Input
+              aria-label="Search packages"
+              placeholder="Search packages, script, caption..."
+              className="w-48 sm:w-60 h-9 text-xs"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              className={cn("h-9 gap-1.5 text-xs", (showFilters || activeFilterCount > 0) && "bg-accent")}
+              onClick={() => setShowFilters(v => !v)}
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+              <span>Filters</span>
+              {activeFilterCount > 0 && (
+                <span className="rounded-full bg-primary px-1.5 py-0.2 text-[10px] text-primary-foreground font-semibold">
+                  {activeFilterCount}
+                </span>
+              )}
+            </Button>
+            <Button variant="outline" size="sm" className="h-9 text-xs" disabled={query.isFetching || people.isFetching} onClick={() => { void query.refetch(); void people.refetch() }}>
+              Refresh
+            </Button>
+          </div>
+        </div>
+
+        {showFilters && (
+          <div className="rounded-lg border bg-muted/30 p-3 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold">Filter Packages</span>
+                {activeFilterCount > 0 && (
+                  <span className="text-[10px] bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full font-medium">
+                    {activeFilterCount} active
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {activeFilterCount > 0 && (
+                  <Button variant="ghost" size="sm" onClick={clearFilters} className="h-7 text-xs">
+                    Clear all
+                  </Button>
+                )}
+                <Button variant="ghost" size="icon" onClick={() => setShowFilters(false)} className="h-7 w-7">
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="space-y-1">
+                <label className="text-[10px] uppercase font-semibold tracking-wide text-muted-foreground">
+                  Creator
+                </label>
+                <select
+                  aria-label="Filter by creator"
+                  value={creatorFilter}
+                  onChange={e => setCreatorFilter(e.target.value)}
+                  className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs font-medium focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  <option value="all">All Creators</option>
+                  {(people.data ?? []).map(p => (
+                    <option key={p.id} value={p.id}>{p.full_name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] uppercase font-semibold tracking-wide text-muted-foreground">
+                  Approver
+                </label>
+                <select
+                  aria-label="Filter by approver"
+                  value={approverFilter}
+                  onChange={e => setApproverFilter(e.target.value)}
+                  className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs font-medium focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  <option value="all">All Approvers</option>
+                  {(people.data ?? []).map(p => (
+                    <option key={p.id} value={p.id}>{p.full_name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] uppercase font-semibold tracking-wide text-muted-foreground">
+                  Status
+                </label>
+                <select
+                  aria-label="Filter by status"
+                  value={statusFilter}
+                  onChange={e => setStatusFilter(e.target.value)}
+                  className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs font-medium focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  <option value="all">All Statuses</option>
+                  {Object.entries(CONTENT_STATUS_LABELS).map(([key, label]) => (
+                    <option key={key} value={key}>{label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div data-cell-editor className="cell-editor-panel relative w-full max-h-[40vh] overflow-y-auto rounded-lg border border-indigo-200 bg-background p-3 shadow-sm dark:border-indigo-800">
+          {selectedCell && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="mb-2 text-xs text-muted-foreground hover:text-foreground"
+              onClick={() => setSelectedCell(null)}
+            >
+              Close expanded editor
+            </Button>
+          )}
+          <div ref={setEditorHost} className="empty:hidden" />
+        </div>
+
+        {query.isError && <p role="alert" className="text-destructive">Unable to load content packages. Your unsaved rows are kept here. Refresh to restore saving.</p>}
+        {query.isPending && <p role="status">Loading content packages...</p>}
+        {people.isError && <p role="alert" className="text-destructive">Unable to load approvers. Refresh to try again.</p>}
+        <div className="overflow-x-auto rounded-md border">
+          <table className="responsive-sheet w-full min-w-[1350px] table-fixed border-collapse text-sm">
+            <caption className="bg-red-600 px-4 py-3 text-xl font-bold text-white">CONTENT CREATOR PKG LIST</caption>
+            <thead className="bg-muted"><tr>{['PKG name', 'Creator name', 'Script', 'Approver', 'Status', 'Caption', 'Thumb', 'Actions'].map(label => <th scope="col" key={label} className="border px-3 py-2 text-left uppercase">{label}</th>)}</tr></thead>
+            <tbody>
+              {user && rows.map(entry => <ContentPackageRow key={entry.id} entry={entry} userId={user.id} canManage={isLead} people={people.data ?? []} unavailable={query.isError || query.isPending} onDetails={action => setParams({ package: entry.id, ...(action ? { action } : {}) })} />)}
+              {user && <SheetDraftRows>{actions => <ContentPackageRow userId={user.id} canManage={isLead} people={people.data ?? []} hidden={view === 'review'} unavailable={query.isError || query.isPending || people.isError || people.isPending} {...actions} />}</SheetDraftRows>}
+            </tbody>
+          </table>
+        </div>
+        {!rows.length && <p className="text-sm text-muted-foreground">{view === 'review' ? 'No packages are waiting for your review.' : 'Start typing in the blank row to create a package.'}</p>}
+        {params.has('package') && !selected && <p role="alert">This package is unavailable or you do not have access.</p>}
+        {user && selected && <PackageDialog key={selected.id} entry={selected} requestedAction={params.get('action')} userId={user.id} canManage={isLead} onClose={close} onSaved={saved} />}
       </div>
-      {!rows.length && <p className="text-sm text-muted-foreground">{view === 'review' ? 'No packages are waiting for your review.' : 'Start typing in the blank row to create a package.'}</p>}
-      {params.has('package') && !selected && <p role="alert">This package is unavailable or you do not have access.</p>}
-    {user && selected && <PackageDialog key={selected.id} entry={selected} requestedAction={params.get('action')} userId={user.id} canManage={isLead} onClose={close} onSaved={saved} />}
-  </div>
+    </ContentCellEditorContext.Provider>
+  )
 }
 
 function Thumbnail({ url }: { url: string }) {
