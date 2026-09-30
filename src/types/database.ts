@@ -1,3 +1,4 @@
+import type { WorkSection } from './workSection'
 // ─────────────────────────────────────────────────────────────────────────────
 // Raw Supabase database types — aligned with 001_schema.sql
 // These types map 1:1 with the PostgREST API response shapes.
@@ -52,6 +53,7 @@ export interface DbChannel {
 }
 
 export interface DbMarketingAd {
+  work_section?: WorkSection
   id: string
   advertiser: string
   package_type: string
@@ -65,6 +67,7 @@ export interface DbMarketingAd {
 }
 
 export interface DbTask {
+  work_section?: WorkSection
   source_content_id?: string | null
   time_slot?: string | null
   id: string

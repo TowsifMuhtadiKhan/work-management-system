@@ -4,6 +4,7 @@ export interface Field {
   key: string
   label: string
   type?: 'text' | 'number' | 'date' | 'color' | 'textarea'
+  options?: { value: string; label: string }[]
   required?: boolean
 }
 export interface CatalogConfig {
@@ -36,7 +37,7 @@ export const catalogConfig: Record<Catalog, CatalogConfig> = {
   marketing_ads: {
     title: 'Marketing Ads', singular: 'Marketing Ad', sort: 'advertiser',
     description: 'Manage advertisers, packages, daily targets, and campaign dates for assignments.',
-    fields: [{ key: 'advertiser', label: 'Advertiser', required: true }, { key: 'package_type', label: 'Package type', required: true },
+    fields: [{ key: 'work_section', label: 'Section', required: true, options: [{ value: 'digital', label: 'Digital' }, { value: 'web', label: 'Web' }] }, { key: 'advertiser', label: 'Advertiser', required: true }, { key: 'package_type', label: 'Package type', required: true },
       { key: 'daily_target', label: 'Daily target', type: 'number', required: true },
       { key: 'valid_from', label: 'Valid from', type: 'date' }, { key: 'valid_to', label: 'Valid to', type: 'date' },
       { key: 'description', label: 'Description', type: 'textarea' }],
@@ -53,6 +54,7 @@ export function catalogPayload(catalog: Catalog, values: Record<string, string>,
   for (const field of catalogConfig[catalog].fields) {
     const value = (values[field.key] ?? '').trim()
     if (field.required && !value) throw new Error(`${field.label} is required.`)
+    if (field.options && !field.options.some(option => option.value === value)) throw new Error(`Select a valid ${field.label}.`)
     if (field.type === 'number') {
       const number = Number(value)
       if (!Number.isSafeInteger(number) || number < 0) throw new Error(`${field.label} must be a non-negative whole number.`)

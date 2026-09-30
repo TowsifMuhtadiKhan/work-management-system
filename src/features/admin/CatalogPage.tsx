@@ -249,7 +249,7 @@ function CatalogEditor({
     Object.fromEntries(
       config.fields.map(f => [
         f.key,
-        String(row?.[f.key] ?? (f.type === 'color' ? '#3B82F6' : f.type === 'number' ? '0' : '')),
+        String(row?.[f.key] ?? (f.options?.[0]?.value ?? (f.type === 'color' ? '#3B82F6' : f.type === 'number' ? '0' : ''))),
       ])
     )
   )
@@ -295,7 +295,7 @@ function CatalogEditor({
                 <Label htmlFor={field.key}>
                   {field.label}{field.required ? ' *' : ''}
                 </Label>
-                {field.type === 'textarea' ? (
+                {field.options ? (<select id={field.key} className="w-full rounded-md border bg-background p-2 text-sm" value={values[field.key]} onChange={e => setValues({ ...values, [field.key]: e.target.value })}>{field.options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select>) : field.type === 'textarea' ? (
                   <Textarea
                     id={field.key}
                     value={values[field.key]}

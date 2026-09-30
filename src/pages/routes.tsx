@@ -1,3 +1,4 @@
+import { ErrorPage, RouteErrorPage } from './ErrorPage'
 import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom'
 import { AppLayout } from '@/layouts/AppLayout'
 import { AuthLayout } from '@/layouts/AuthLayout'
@@ -21,44 +22,50 @@ const router = createBrowserRouter([
   // Auth routes — no sidebar/header
   {
     element: <AuthLayout />,
+    errorElement: <RouteErrorPage standalone />,
     children: [
-      { path: '/login', element: <LoginPage /> },
-      { path: '/signup', element: <SignupPage /> },
+      { path: '/login', element: <LoginPage />, errorElement: <RouteErrorPage /> },
+      { path: '/signup', element: <SignupPage />, errorElement: <RouteErrorPage /> },
     ],
   },
 
   // Authenticated app routes — with sidebar + header
   {
     element: <AppLayout />,
+    errorElement: <RouteErrorPage standalone />,
     children: [
       { index: true, element: <Navigate to="/dashboard" replace /> },
-      { path: '/dashboard', element: <DashboardPage /> },
-      { path: '/tasks', element: <DailyTasksPage /> },
-      { path: '/my-tasks', element: <MyTasksPage /> },
-      { path: '/rush', element: <RushPage /> },
-      { path: '/content-creator', element: <ContentCreatorPage /> },
-      { path: '/reports', element: <ReportsPage /> },
-      { path: '/marketing', element: <MarketingPage /> },
-      { path: '/profile', element: <ProfilePage /> },
+      { path: '/dashboard', element: <DashboardPage />, errorElement: <RouteErrorPage /> },
+      { path: '/tasks', element: <DailyTasksPage />, errorElement: <RouteErrorPage /> },
+      { path: '/tasks/digital', element: <DailyTasksPage key="digital" section="digital" />, errorElement: <RouteErrorPage /> },
+      { path: '/tasks/web', element: <DailyTasksPage key="web" section="web" />, errorElement: <RouteErrorPage /> },
+      { path: '/my-tasks', element: <MyTasksPage />, errorElement: <RouteErrorPage /> },
+      { path: '/rush', element: <RushPage />, errorElement: <RouteErrorPage /> },
+      { path: '/content-creator', element: <ContentCreatorPage />, errorElement: <RouteErrorPage /> },
+      { path: '/reports', element: <ReportsPage />, errorElement: <RouteErrorPage /> },
+      { path: '/marketing', element: <MarketingPage />, errorElement: <RouteErrorPage /> },
+      { path: '/marketing/digital', element: <MarketingPage key="digital" section="digital" />, errorElement: <RouteErrorPage /> },
+      { path: '/marketing/web', element: <MarketingPage key="web" section="web" />, errorElement: <RouteErrorPage /> },
+      { path: '/profile', element: <ProfilePage />, errorElement: <RouteErrorPage /> },
 
       // Admin routes — wrapped in AdminLayout guard
       {
         element: <AdminLayout />,
         children: [
-          { path: '/admin', element: <Navigate to="/admin/employees" replace /> },
-          { path: '/admin/employees', element: <EmployeesPage /> },
-          { path: '/admin/departments', element: <CatalogPage key="departments" catalog="departments" /> },
-          { path: '/admin/task-types', element: <CatalogPage key="task_types" catalog="task_types" /> },
-          { path: '/admin/channels', element: <CatalogPage key="channels" catalog="channels" /> },
-          { path: '/admin/marketing-ads', element: <CatalogPage key="marketing_ads" catalog="marketing_ads" /> },
-          { path: '/admin/settings', element: <SettingsPage /> },
+          { path: '/admin', element: <Navigate to="/admin/employees" replace />, errorElement: <RouteErrorPage /> },
+          { path: '/admin/employees', element: <EmployeesPage />, errorElement: <RouteErrorPage /> },
+          { path: '/admin/departments', element: <CatalogPage key="departments" catalog="departments" />, errorElement: <RouteErrorPage /> },
+          { path: '/admin/task-types', element: <CatalogPage key="task_types" catalog="task_types" />, errorElement: <RouteErrorPage /> },
+          { path: '/admin/channels', element: <CatalogPage key="channels" catalog="channels" />, errorElement: <RouteErrorPage /> },
+          { path: '/admin/marketing-ads', element: <CatalogPage key="marketing_ads" catalog="marketing_ads" />, errorElement: <RouteErrorPage /> },
+          { path: '/admin/settings', element: <SettingsPage />, errorElement: <RouteErrorPage /> },
         ],
       },
     ],
   },
 
   // Catch-all
-  { path: '*', element: <Navigate to="/dashboard" replace /> },
+  { path: '*', element: <ErrorPage kind="not-found" standalone />, errorElement: <RouteErrorPage /> },
 ])
 
 export function AppRouter() {

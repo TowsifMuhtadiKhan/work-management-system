@@ -1,34 +1,41 @@
+import type { WorkSection } from '@/types/workSection'
 import { supabase } from '@/lib/supabase/client'
 import type { MarketingAd } from '@/types/entities'
 import type { DbMarketingAdInsert } from '@/types/database'
 
-export async function fetchMarketingAds(): Promise<MarketingAd[]> {
-  const { data, error } = await supabase
+export async function fetchMarketingAds(section?: WorkSection): Promise<MarketingAd[]> {
+  let query = supabase
     .from('marketing_ads')
     .select('*')
     .eq('is_active', true)
     .order('advertiser')
+  if (section) query = query.eq('work_section', section)
+  const { data, error } = await query
   if (error) throw error
   return data ?? []
 }
 
-export async function fetchAllMarketingAds(): Promise<MarketingAd[]> {
-  const { data, error } = await supabase
+export async function fetchAllMarketingAds(section?: WorkSection): Promise<MarketingAd[]> {
+  let query = supabase
     .from('marketing_ads')
     .select('*')
     .order('advertiser')
+  if (section) query = query.eq('work_section', section)
+  const { data, error } = await query
   if (error) throw error
   return data ?? []
 }
 
 // Returns completed count for each ad on a given date
-export async function fetchMarketingProgress(workDate: string) {
-  const { data, error } = await supabase
+export async function fetchMarketingProgress(workDate: string, section?: WorkSection) {
+  let query = supabase
     .from('tasks')
     .select('marketing_ad_id, status')
     .eq('work_date', workDate)
     .not('marketing_ad_id', 'is', null)
 
+  if (section) query = query.eq('work_section', section)
+  const { data, error } = await query
   if (error) throw error
   return data ?? []
 }

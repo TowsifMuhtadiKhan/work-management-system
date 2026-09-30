@@ -37,7 +37,7 @@ export async function mockApp(page: Page, { role = 'administrator', ready = true
       return respond({ id: '10000000-0000-0000-0000-000000000003', email: 'new@example.test', identities: [] })
     }
     if (request.method() === 'GET') {
-      const rows = (tables[path] ?? []).filter(row => !url.searchParams.has('id') || url.searchParams.get('id')?.startsWith('in.') || `eq.${row.id}` === url.searchParams.get('id'))
+      const rows = (tables[path] ?? []).filter(row => !url.searchParams.has('work_section') || url.searchParams.get('work_section') === 'eq.' + (row.work_section ?? 'digital')).filter(row => !url.searchParams.has('id') || url.searchParams.get('id')?.startsWith('in.') || `eq.${row.id}` === url.searchParams.get('id'))
       if (request.headers().accept?.includes('vnd.pgrst.object')) return respond(rows[0] ?? null)
       return respond(path === 'tasks' ? rows.filter(row => (!url.searchParams.has('assigned_to') || url.searchParams.get('assigned_to') === 'eq.' + row.assigned_to) && (!url.searchParams.has('work_date') || url.searchParams.get('work_date') === 'eq.' + row.work_date)) : rows)
     }
@@ -86,11 +86,11 @@ test('Tasks submenu and Rush rows support inline creation, editing and automatic
   const mock = await mockApp(page)
   await page.goto('/rush')
   await expect(page.getByRole('button', { name: 'Add entry' })).toHaveCount(0)
-  await expect(page.getByRole('link', { name: 'Daily Task', exact: true })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Daily Task (Digital)', exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Tasks', exact: true }).click()
-  await expect(page.getByRole('link', { name: 'Daily Task', exact: true })).toBeHidden()
+  await expect(page.getByRole('link', { name: 'Daily Task (Digital)', exact: true })).toBeHidden()
   await page.getByRole('button', { name: 'Tasks', exact: true }).click()
-  await expect(page.getByRole('link', { name: 'Daily Task', exact: true })).toHaveAttribute('href', '/tasks')
+  await expect(page.getByRole('link', { name: 'Daily Task (Digital)', exact: true })).toHaveAttribute('href', '/tasks/digital')
   const row = page.locator('tbody tr').first()
   await row.getByLabel('Reporter', { exact: true }).fill('Test Reporter')
   await expect(page.locator('tbody tr')).toHaveCount(2)
@@ -500,7 +500,7 @@ test('non-admin user sidebar is filtered according to department allowed_feature
 
   await page.goto('/tasks')
   // Sidebar should contain Daily Task
-  await expect(page.getByRole('link', { name: 'Daily Task', exact: true })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Daily Task (Digital)', exact: true })).toBeVisible()
   // Features not allowed for this department should be hidden
   await expect(page.getByRole('link', { name: 'Rush', exact: true })).toBeHidden()
   await expect(page.getByRole('link', { name: 'Content Creator', exact: true })).toBeHidden()
@@ -537,4 +537,84 @@ test('login page provides password reset modal for employees', async ({ page }) 
   await expect(page.getByLabel('Work email address')).toBeVisible()
   await page.getByRole('button', { name: 'Cancel' }).click()
   await expect(page.getByRole('heading', { name: 'Reset your password' })).toBeHidden()
+})
+
+test('Digital and Web keep task lists and marketing campaigns separate', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const mock = await mockApp(page)
+  mock.tables.task_types.push({ id: 'type-1', name: 'Video', is_active: true })
+  for (const section of ['digital', 'web']) {
+    mock.tables.marketing_ads.push({ id: `ad-${section}`, advertiser: `${section} advertiser`, package_type: 'News', daily_target: 3, is_active: true, work_section: section })
+    mock.tables.tasks.push({ id: `task-${section}`, marketing_ad_id: `ad-${section}`, work_section: section, status: 'pending', work_date: '2026-09-30', file_name: `${section} story`, assigned_to: employeeId, time_slot: '08:00', priority: 'normal' })
+  }
+  await page.goto('/tasks/digital?date=2026-09-30')
+  await expect(page.getByRole('heading', { name: 'Daily Task (Digital)', exact: true })).toBeVisible()
+  await expect(page.getByLabel('file name', { exact: true }).filter({ visible: true }).first()).toBeVisible()
+  await expect(page.locator('input[value="digital story"]')).toBeVisible()
+  await expect(page.locator('input[value="web story"]')).toHaveCount(0)
+  await page.getByRole('link', { name: 'Daily Task (Web)', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Daily Task (Web)', exact: true })).toBeVisible()
+  await page.goto('/tasks/web?date=2026-09-30')
+  await expect(page.locator('input[value="web story"]')).toBeVisible()
+  await expect(page.locator('input[value="digital story"]')).toHaveCount(0)
+  const region = page.getByRole('region', { name: '8:00 AM', exact: true })
+  const draft = region.locator('tbody tr').last()
+  await draft.getByLabel('file name', { exact: true }).fill('New web task')
+  // Typing creates a new blank row; keep the row being edited.
+  const editing = region.locator('tbody tr').filter({ has: page.locator('input[value="New web task"]') })
+  await editing.getByRole('button', { name: 'task type id', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'Video', exact: true }).click()
+  await editing.getByRole('button', { name: 'assigned to', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'Test Administrator', exact: true }).click()
+  await editing.getByRole('button', { name: 'Actions', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'Save', exact: true }).click()
+  await expect.poll(() => mock.writes.find(w => w.body.file_name === 'New web task')?.body.work_section).toBe('web')
+  await page.getByRole('link', { name: 'Marketing (Web)', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Marketing (Web)', exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'web advertiser' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'digital advertiser' })).toHaveCount(0)
+  await page.getByRole('link', { name: 'Marketing (Digital)', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'digital advertiser' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'web advertiser' })).toHaveCount(0)
+})
+
+test('expanded task editor stays visible when editing a lower time section', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await mockApp(page)
+  await page.goto('/tasks/digital')
+  const section = page.getByRole('region', { name: '3:00 PM', exact: true })
+  const input = section.getByLabel('file name', { exact: true }).first()
+  await input.scrollIntoViewIfNeeded()
+  await input.fill('Afternoon story')
+  const panel = page.locator('.cell-editor-panel')
+  await expect(panel.getByRole('textbox')).toHaveValue('Afternoon story')
+  await expect(panel).toBeInViewport({ ratio: 1 })
+  await panel.getByRole('textbox').fill('Updated afternoon story')
+  await expect(input).toHaveValue('Updated afternoon story')
+  await panel.getByRole('button', { name: 'Close expanded editor' }).click()
+  await expect(panel).toBeHidden()
+})
+
+test('unknown pages show a recovery screen and dashboard navigation', async ({ page }) => {
+  await mockApp(page)
+  await page.goto('/missing-page')
+  await expect(page.getByRole('heading', { name: 'This page could not be found' })).toBeVisible()
+  await expect(page.getByText('404', { exact: true })).toBeVisible()
+  await page.getByRole('link', { name: 'Go to dashboard' }).click()
+  await expect(page).toHaveURL(/\/dashboard$/)
+})
+
+test('task loading error offers retry and recovers without reloading the page', async ({ page }) => {
+  await mockApp(page)
+  let fail = true
+  await page.route(`https://${hostname}/rest/v1/tasks?**`, route => fail
+    ? route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ message: 'Internal database details' }) })
+    : route.fallback())
+  await page.goto('/tasks/web')
+  await expect(page.getByRole('heading', { name: 'Unable to load your tasks' })).toBeVisible()
+  await expect(page.getByText('Internal database details')).toHaveCount(0)
+  fail = false
+  await page.getByRole('button', { name: 'Try again', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Unable to load your tasks' })).toHaveCount(0)
+  await expect(page.locator('.task-sheet')).toBeVisible()
 })

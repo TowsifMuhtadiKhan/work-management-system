@@ -1,3 +1,4 @@
+import type { WorkSection } from '@/types/workSection'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { TableProperties } from 'lucide-react'
@@ -6,12 +7,12 @@ import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, Dialog
 import { Pagination } from '@/components/common/Pagination'
 import { fetchMarketingAds, fetchMarketingProgress } from '@/services/marketingAds.service'
 
-export function MarketingDailySheet({ workDate }: { workDate: string }) {
+export function MarketingDailySheet({ workDate, section }: { workDate: string; section?: WorkSection }) {
   const [open, setOpen] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
-  const ads = useQuery({ queryKey: ['marketing-ads'], queryFn: fetchMarketingAds, enabled: open })
-  const progress = useQuery({ queryKey: ['marketing-progress', workDate], queryFn: () => fetchMarketingProgress(workDate), enabled: open, refetchInterval: open ? 15000 : false })
+  const ads = useQuery({ queryKey: ['marketing-ads', section], queryFn: () => fetchMarketingAds(section), enabled: open })
+  const progress = useQuery({ queryKey: ['marketing-progress', workDate, section], queryFn: () => fetchMarketingProgress(workDate, section), enabled: open, refetchInterval: open ? 15000 : false })
   const counts = new Map<string, number>()
   for (const task of progress.data ?? []) {
     if (task.marketing_ad_id && task.status === 'done') counts.set(task.marketing_ad_id, (counts.get(task.marketing_ad_id) ?? 0) + 1)

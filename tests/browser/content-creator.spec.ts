@@ -9,9 +9,9 @@ type Row = Record<string, unknown>
 
 function backend() {
   const profiles = [
-    { id: creatorId, full_name: 'Content Creator' },
-    { id: approverId, full_name: 'Selected Approver' },
-    { id: outsiderId, full_name: 'Other Employee' },
+    { id: creatorId, full_name: 'Content Creator', department: {name: 'Content Creator Team', is_active: true} },
+    { id: approverId, full_name: 'Second Creator', department: {name: 'Content Creator Team', is_active: true} },
+    { id: outsiderId, full_name: 'Other Employee', department: {name: 'Marketing', is_active: true} },
   ].map(person => ({ ...person, email: `${person.id}@example.test`, application_role: 'employee', is_active: true, manager_id: null }))
   const tables: Record<string, Row[]> = { profiles, content_packages: [], content_reviews: [], tasks: [], task_types: [{ id: 'type-1', name: 'Video', code: 'VIDEO', is_active: true }], channels: [], marketing_ads: [] }
   let failWrite = false
@@ -34,7 +34,7 @@ function backend() {
       const respond = (data: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(data) })
       if (table === 'user') return respond(user)
       if (request.method() === 'GET') {
-        let rows = (tables[table] ?? []).filter(row => [...url.searchParams].every(([key, value]) => !value.startsWith('eq.') || String(row[key]) === value.slice(3)))
+        let rows = (tables[table] ?? []).filter(row => [...url.searchParams].every(([key, value]) => key.includes('.') || !value.startsWith('eq.') || String(row[key]) === value.slice(3)))
         if (table === 'content_reviews') rows = rows.filter(row => row.package_id === url.searchParams.get('package_id')?.slice(3))
         return respond(request.headers().accept?.includes('vnd.pgrst.object') ? enrich(table, rows[0] ?? {}) : rows.map(row => enrich(table, row)))
       }
@@ -53,7 +53,7 @@ function backend() {
       if (table === 'content_packages' && result.status !== 'draft') {
         tables.content_reviews.push({ id: `review-${version}`, package_id: result.id, reviewer_id: userId, action: result.status === 'submitted' && body.feedback ? 'feedback' : result.status, feedback: body.feedback ?? '', created_at: new Date().toISOString() })
       }
-      if (table === 'content_packages' && result.status === 'approved') {
+      if (table === 'content_packages' && result.status === 'export_done') {
         result.task_id = 'task-content-1'
         const creator = profiles.find(p => p.id === result.creator_id)
         const creatorName = creator?.full_name ?? 'Creator'
@@ -79,89 +79,62 @@ function backend() {
   return { tables, connect, failNextWrite: () => { failWrite = true } }
 }
 
-test('creator submits, receives feedback, revises, and selected approver creates a marked Daily Task', async ({ page, browser, baseURL }) => {
+test('creator edits rich script, marks approved, then exports a mapped Daily Task', async ({ page }) => {
   const mock = backend()
   await mock.connect(page, creatorId)
   await page.goto('/content-creator')
-  await expect(page.getByRole('button', { name: 'Add package' })).toHaveCount(0)
-  await page.getByLabel('PKG name').first().fill('Evening news package')
+  const row = page.locator('tbody tr').first()
+  await row.getByLabel('PKG name').fill('Evening news package')
   await expect(page.locator('tbody tr')).toHaveCount(2)
-  await expect(page.getByLabel('PKG name').first()).toBeFocused()
-  await page.getByLabel('Script', { exact: true }).first().fill('https://docs.google.com/document/d/script1')
-  await page.getByLabel('Approver', { exact: true }).first().selectOption(approverId)
-  await page.getByLabel('Caption', { exact: true }).first().fill('Original caption')
-  await page.getByPlaceholder('https://…').first().fill('https://example.com/thumb.jpg')
-  await page.getByRole('combobox', { name: 'Status', exact: true }).first().selectOption('submitted')
-  await page.getByRole('button', { name: 'Save and submit' }).first().click()
-  await expect(page.getByRole('combobox', { name: 'Status', exact: true }).first()).toBeDisabled()
-  expect(mock.tables.content_packages[0].script).toBe('https://docs.google.com/document/d/script1')
+  await expect(row.getByLabel('Creator name').locator('option')).toHaveText(['Select creator', 'Content Creator', 'Second Creator'])
+  await row.getByRole('button', { name: 'Edit Script', exact: true }).click()
+  let dialog = page.getByRole('dialog')
+  await dialog.getByRole('button', { name: 'Bold', exact: true }).click()
+  await dialog.getByRole('textbox', { name: 'Script text' }).fill('Opening script')
+  await dialog.getByRole('button', { name: 'Apply Script' }).click()
+  await row.getByLabel('Caption', { exact: true }).fill('Short caption')
+  await row.getByLabel('Thumbnail', { exact: true }).fill('Red title on dark background')
+  await row.getByLabel('Approved', { exact: true }).selectOption('done')
+  await row.getByRole('button', { name: 'Save package' }).click()
+  await expect(row.getByRole('button', { name: 'Save package' })).toBeDisabled()
   expect(mock.tables.tasks).toHaveLength(0)
-
-  const context = await browser.newContext({ baseURL })
-  try {
-    const reviewer = await context.newPage()
-    await mock.connect(reviewer, approverId)
-    await reviewer.goto('/content-creator')
-    await reviewer.getByRole('button', { name: 'Awaiting my review' }).click()
-    await reviewer.getByRole('combobox', { name: 'Status', exact: true }).first().selectOption('approved')
-    await reviewer.getByLabel('Feedback', { exact: true }).fill('Please shorten the caption')
-    await reviewer.getByRole('button', { name: 'Request changes', exact: true }).click()
-    await expect(reviewer.getByRole('dialog')).toBeHidden()
-
-    await page.reload()
-    await expect(page.getByText('Feedback: Please shorten the caption', { exact: true })).toBeVisible()
-    await page.getByLabel('Caption', { exact: true }).first().fill('Short caption')
-    await page.getByRole('button', { name: 'Send for approval' }).first().click()
-    await expect(page.getByRole('combobox', { name: 'Status', exact: true }).first()).toBeDisabled()
-
-    await reviewer.reload()
-    await reviewer.getByRole('button', { name: 'Review', exact: true }).click()
-    await reviewer.getByLabel('Work date').fill('2026-10-01')
-    await reviewer.getByLabel('Time section', { exact: true }).selectOption('08:00')
-    await reviewer.getByLabel('Task type').selectOption('type-1')
-    await reviewer.getByRole('button', { name: 'Approve & add to Daily Tasks' }).click()
-    await expect(reviewer.getByRole('dialog')).toBeHidden()
-    expect(mock.tables.tasks).toHaveLength(1)
-    expect(mock.tables.tasks[0].caption).toBe('Short caption')
-    expect(mock.tables.tasks[0].remarks).toBe('Content Creator Thumb: https://example.com/thumb.jpg')
-    await reviewer.getByRole('button', { name: 'View details' }).click()
-    await reviewer.getByRole('link', { name: /View Daily Task/ }).click()
-    await expect(reviewer).toHaveURL(/tasks\?date=2026-10-01/)
-    const section = reviewer.getByRole('region', { name: '8:00 AM', exact: true })
-    await expect(section.getByLabel('file name', { exact: true })).toHaveValue('Evening news package')
-    await expect(section.getByLabel('remarks', { exact: true })).toHaveValue('Content Creator Thumb: https://example.com/thumb.jpg')
-    await expect(section.locator('tbody tr').first().locator('td').first().getByRole('link', { name: 'From Content Creator' })).toBeVisible()
-    await section.getByRole('link', { name: 'From Content Creator' }).click()
-    await expect(reviewer.getByRole('dialog')).toBeVisible()
-    await expect(reviewer.getByRole('button', { name: 'Approve & add to Daily Tasks' })).toHaveCount(0)
-  } finally { await context.close() }
+  expect(mock.tables.content_packages[0].script).toContain('Opening script')
+  await row.getByRole('button', { name: 'Edit Script', exact: true }).click()
+  await expect(page.getByRole('dialog').getByRole('textbox', { name: 'Script text' })).toContainText('Opening script')
+  await page.getByRole('dialog').getByRole('button', { name: 'Cancel', exact: true }).click()
+  await row.getByLabel('Status', { exact: true }).selectOption('export_done')
+  await row.getByRole('button', { name: 'Save package' }).click()
+  dialog = page.getByRole('dialog')
+  await dialog.getByLabel('Work date').fill('2026-10-01')
+  await dialog.getByLabel('Task type').selectOption('type-1')
+  await dialog.getByRole('button', { name: 'Export & add to Daily Tasks' }).click()
+  await expect(dialog).toBeHidden()
+  await expect(row.getByLabel('Status', { exact: true })).toBeDisabled()
+  expect(mock.tables.tasks).toHaveLength(1)
+  expect(mock.tables.tasks[0].caption).toBe('Short caption')
+  expect(mock.tables.tasks[0].remarks).toBe('Content Creator Thumb: Red title on dark background')
+  await expect(row.getByRole('link', { name: 'View Daily Task' })).toHaveAttribute('href', '/tasks/digital?date=2026-10-01')
 })
 
-test('failed content submission preserves the form and does not add a task', async ({ page }) => {
+test('failed save retains edits, and creator/date filters work together', async ({ page }) => {
   const mock = backend()
   await mock.connect(page, creatorId)
   await page.goto('/content-creator')
-  await expect(page.getByRole('button', { name: 'Add package' })).toHaveCount(0)
-  await page.getByLabel('PKG name').first().fill('Keep this draft')
-  await page.getByLabel('Approver', { exact: true }).first().selectOption(approverId)
+  const row = page.locator('tbody tr').first()
+  await row.getByLabel('PKG name').fill('Keep this package')
   mock.failNextWrite()
-  await page.getByRole('button', { name: 'Send for approval' }).first().click()
-  await expect(page.locator('tbody tr').first().getByRole('alert')).toBeVisible()
-  await expect(page.getByLabel('PKG name').first()).toHaveValue('Keep this draft')
-  expect(mock.tables.tasks).toHaveLength(0)
-  await page.getByRole('button', { name: 'Save draft' }).first().click()
-  await expect(page.locator('tbody tr').first().getByRole('button', { name: 'Save draft' })).toHaveCount(0)
-  expect(mock.tables.content_packages[0].status).toBe('draft')
-})
-
-test('user can select a different creator from dropdown when creating package', async ({ page }) => {
-  const mock = backend()
-  await mock.connect(page, creatorId)
-  await page.goto('/content-creator')
-  await page.getByLabel('PKG name').first().fill('Special Project')
-  await page.getByLabel('Creator name', { exact: true }).first().selectOption(outsiderId)
-  await page.getByLabel('Approver', { exact: true }).first().selectOption(approverId)
-  await page.getByRole('button', { name: 'Save draft' }).first().click()
-  await expect(page.locator('tbody tr').first().getByRole('button', { name: 'Save draft' })).toHaveCount(0)
-  expect(mock.tables.content_packages[0].creator_id).toBe(outsiderId)
+  await row.getByRole('button', { name: 'Save package' }).click()
+  await expect(row.getByRole('alert')).toBeVisible()
+  await expect(row.getByLabel('PKG name')).toHaveValue('Keep this package')
+  await row.getByRole('button', { name: 'Save package' }).click()
+  await expect(row.getByRole('button', { name: 'Save package' })).toBeDisabled()
+  await page.getByRole('button', { name: 'Filters' }).click()
+  await page.getByLabel('Filter by creator').selectOption(approverId)
+  await expect(page.getByText('No packages match these filters.')).toBeVisible()
+  await page.getByLabel('Filter by creator').selectOption(creatorId)
+  await expect(row.getByLabel('PKG name')).toHaveValue('Keep this package')
+  await page.getByLabel('To date', { exact: true }).fill('2000-01-01')
+  await expect(page.getByText('No packages match these filters.')).toBeVisible()
+  await page.getByRole('button', { name: 'Clear all' }).click()
+  await expect(row.getByLabel('PKG name')).toHaveValue('Keep this package')
 })

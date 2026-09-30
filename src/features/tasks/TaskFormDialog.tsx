@@ -103,8 +103,8 @@ export function TaskFormDialog({
     staleTime: 10 * 60 * 1000,
   })
   const { data: marketingAds = [] } = useQuery({
-    queryKey: ['marketing-ads'],
-    queryFn: fetchMarketingAds,
+    queryKey: ['marketing-ads', task?.work_section ?? 'digital'],
+    queryFn: () => fetchMarketingAds(task?.work_section ?? 'digital'),
     staleTime: 10 * 60 * 1000,
   })
 

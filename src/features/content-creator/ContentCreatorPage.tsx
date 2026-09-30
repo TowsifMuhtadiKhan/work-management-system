@@ -1,347 +1,67 @@
-import { createContext, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Clapperboard, SlidersHorizontal, X } from 'lucide-react'
-import { toast } from 'sonner'
+import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
+import { SlidersHorizontal } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useAuth } from '@/hooks/useAuth'
 import { useProfile } from '@/hooks/useProfile'
-import { fetchAssignableProfiles } from '@/services/profiles.service'
-import { fetchTaskTypes } from '@/services/taskTypes.service'
-import { CONTENT_STATUS_LABELS, fetchContentPackages, fetchContentReviews, reviewContentPackage, saveContentPackage } from '@/services/contentPackages.service'
-import type { ApprovalValues, ContentPackage, PackageValues } from '@/services/contentPackages.service'
-import { todayISO } from '@/utils/date'
-import { TIME_SLOTS, slotLabel } from '@/features/tasks/timeSlots'
-import { cn } from '@/utils/cn'
-
+import { CONTENT_STATUS_LABELS, fetchContentCreators, fetchContentPackages } from '@/services/contentPackages.service'
 import { SheetDraftRows } from '@/components/common/SheetDraftRows'
+import { captionText } from '@/utils/caption'
+import { format } from 'date-fns'
 import { ContentPackageRow } from './ContentPackageRow'
-
-export const ContentCellEditorContext = createContext<{
-  host: HTMLDivElement | null
-  selected: string | null
-  select: (id: string | null) => void
-}>({ host: null, selected: null, select: () => {} })
-
-const fieldClass = 'w-full rounded-md border bg-background px-3 py-2 text-sm disabled:opacity-60'
 
 export function ContentCreatorPage() {
   const { user } = useAuth()
   const profile = useProfile(user?.id)
-  const isLead = ['administrator', 'manager', 'team_lead'].includes(profile.data?.application_role ?? '')
-  const [params, setParams] = useSearchParams()
-  const people = useQuery({ queryKey: ['assignable-profiles'], queryFn: fetchAssignableProfiles, enabled: !!user })
+  const canManage = ['administrator', 'manager', 'team_lead'].includes(profile.data?.application_role ?? '')
+  const [params] = useSearchParams()
+  const people = useQuery({ queryKey: ['content-creators'], queryFn: fetchContentCreators, enabled: !!user })
+  const query = useQuery({ queryKey: ['content-packages', user?.id], queryFn: fetchContentPackages, enabled: !!user, refetchInterval: 30000 })
   const [view, setView] = useState('all')
   const [search, setSearch] = useState('')
   const [showFilters, setShowFilters] = useState(false)
   const [creatorFilter, setCreatorFilter] = useState('all')
-  const [approverFilter, setApproverFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
-  const [editorHost, setEditorHost] = useState<HTMLDivElement | null>(null)
-  const [selectedCell, setSelectedCell] = useState<string | null>(null)
-  const client = useQueryClient()
-  const query = useQuery({ queryKey: ['content-packages', user?.id], queryFn: fetchContentPackages, enabled: !!user, refetchInterval: 30000 })
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate] = useState('')
   const packages = query.data ?? []
-  const selected = packages.find(entry => entry.id === params.get('package'))
-
-  const activeFilterCount = (search.trim() ? 1 : 0) + (creatorFilter !== 'all' ? 1 : 0) + (approverFilter !== 'all' ? 1 : 0) + (statusFilter !== 'all' ? 1 : 0)
-  const clearFilters = () => {
-    setSearch('')
-    setCreatorFilter('all')
-    setApproverFilter('all')
-    setStatusFilter('all')
-  }
-
+  const activeFilters = Number(creatorFilter !== 'all') + Number(statusFilter !== 'all') + Number(!!fromDate) + Number(!!toDate)
   const rows = packages.filter(entry => {
     if (view === 'mine' && entry.creator_id !== user?.id) return false
-    if (view === 'review' && (entry.approver_id !== user?.id || entry.status !== 'submitted')) return false
-
-    if (search.trim()) {
-      const q = search.toLowerCase()
-      const nameMatch = entry.package_name?.toLowerCase().includes(q)
-      const scriptMatch = entry.script?.toLowerCase().includes(q)
-      const captionMatch = entry.caption?.toLowerCase().includes(q)
-      const creatorMatch = entry.creator?.full_name?.toLowerCase().includes(q)
-      const approverMatch = entry.approver?.full_name?.toLowerCase().includes(q)
-      if (!nameMatch && !scriptMatch && !captionMatch && !creatorMatch && !approverMatch) return false
-    }
-
     if (creatorFilter !== 'all' && entry.creator_id !== creatorFilter) return false
-    if (approverFilter !== 'all' && entry.approver_id !== approverFilter) return false
     if (statusFilter !== 'all' && entry.status !== statusFilter) return false
-
-    return true
+    const date = format(new Date(entry.created_at), 'yyyy-MM-dd')
+    if (fromDate && date < fromDate || toDate && date > toDate) return false
+    const q = search.trim().toLowerCase()
+    return !q || [entry.package_name, captionText(entry.script), entry.caption, entry.thumbnail_url, entry.creator?.full_name].some(value => value?.toLowerCase().includes(q))
   })
-
-  const close = () => { setParams({}, { replace: true }) }
-  const saved = () => {
-    for (const key of ['content-packages', 'content-reviews', 'tasks', 'daily-stats', 'tasks-by-employee']) void client.invalidateQueries({ queryKey: [key] })
-    close()
-  }
-
-  return (
-    <ContentCellEditorContext.Provider value={{ host: editorHost, selected: selectedCell, select: setSelectedCell }}>
-      <div className="p-3 sm:p-6 space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-xl font-bold">Content Creator</h1>
-            <p className="text-sm text-muted-foreground">Fill in a blank row, then save or send for approval. A new blank row appears as you type.</p>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex flex-wrap items-center gap-2">
-            {([['all', 'All packages'], ['mine', 'My packages'], ['review', 'Awaiting my review']] as const).map(([value, label]) => (
-              <Button key={value} variant={view === value ? 'default' : 'outline'} aria-pressed={view === value} onClick={() => setView(value)}>
-                {label}
-              </Button>
-            ))}
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Input
-              aria-label="Search packages"
-              placeholder="Search packages, script, caption..."
-              className="w-48 sm:w-60 h-9 text-xs"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-            />
-            <Button
-              variant="outline"
-              size="sm"
-              className={cn("h-9 gap-1.5 text-xs", (showFilters || activeFilterCount > 0) && "bg-accent")}
-              onClick={() => setShowFilters(v => !v)}
-            >
-              <SlidersHorizontal className="h-3.5 w-3.5" />
-              <span>Filters</span>
-              {activeFilterCount > 0 && (
-                <span className="rounded-full bg-primary px-1.5 py-0.2 text-[10px] text-primary-foreground font-semibold">
-                  {activeFilterCount}
-                </span>
-              )}
-            </Button>
-            <Button variant="outline" size="sm" className="h-9 text-xs" disabled={query.isFetching || people.isFetching} onClick={() => { void query.refetch(); void people.refetch() }}>
-              Refresh
-            </Button>
-          </div>
-        </div>
-
-        {showFilters && (
-          <div className="rounded-lg border bg-muted/30 p-3 space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold">Filter Packages</span>
-                {activeFilterCount > 0 && (
-                  <span className="text-[10px] bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full font-medium">
-                    {activeFilterCount} active
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                {activeFilterCount > 0 && (
-                  <Button variant="ghost" size="sm" onClick={clearFilters} className="h-7 text-xs">
-                    Clear all
-                  </Button>
-                )}
-                <Button variant="ghost" size="icon" onClick={() => setShowFilters(false)} className="h-7 w-7">
-                  <X className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="space-y-1">
-                <label className="text-[10px] uppercase font-semibold tracking-wide text-muted-foreground">
-                  Creator
-                </label>
-                <select
-                  aria-label="Filter by creator"
-                  value={creatorFilter}
-                  onChange={e => setCreatorFilter(e.target.value)}
-                  className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs font-medium focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                >
-                  <option value="all">All Creators</option>
-                  {(people.data ?? []).map(p => (
-                    <option key={p.id} value={p.id}>{p.full_name}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] uppercase font-semibold tracking-wide text-muted-foreground">
-                  Approver
-                </label>
-                <select
-                  aria-label="Filter by approver"
-                  value={approverFilter}
-                  onChange={e => setApproverFilter(e.target.value)}
-                  className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs font-medium focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                >
-                  <option value="all">All Approvers</option>
-                  {(people.data ?? []).map(p => (
-                    <option key={p.id} value={p.id}>{p.full_name}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] uppercase font-semibold tracking-wide text-muted-foreground">
-                  Status
-                </label>
-                <select
-                  aria-label="Filter by status"
-                  value={statusFilter}
-                  onChange={e => setStatusFilter(e.target.value)}
-                  className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs font-medium focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                >
-                  <option value="all">All Statuses</option>
-                  {Object.entries(CONTENT_STATUS_LABELS).map(([key, label]) => (
-                    <option key={key} value={key}>{label}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div data-cell-editor className="cell-editor-panel relative w-full max-h-[40vh] overflow-y-auto rounded-lg border border-indigo-200 bg-background p-3 shadow-sm dark:border-indigo-800">
-          {selectedCell && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="mb-2 text-xs text-muted-foreground hover:text-foreground"
-              onClick={() => setSelectedCell(null)}
-            >
-              Close expanded editor
-            </Button>
-          )}
-          <div ref={setEditorHost} className="empty:hidden" />
-        </div>
-
-        {query.isError && <p role="alert" className="text-destructive">Unable to load content packages. Your unsaved rows are kept here. Refresh to restore saving.</p>}
-        {query.isPending && <p role="status">Loading content packages...</p>}
-        {people.isError && <p role="alert" className="text-destructive">Unable to load approvers. Refresh to try again.</p>}
-        <div className="overflow-x-auto rounded-md border">
-          <table className="responsive-sheet w-full min-w-[1350px] table-fixed border-collapse text-sm">
-            <caption className="bg-red-600 px-4 py-3 text-xl font-bold text-white">CONTENT CREATOR PKG LIST</caption>
-            <thead className="bg-muted"><tr>{['PKG name', 'Creator name', 'Script', 'Approver', 'Status', 'Caption', 'Thumb', 'Actions'].map(label => <th scope="col" key={label} className="border px-3 py-2 text-left uppercase">{label}</th>)}</tr></thead>
-            <tbody>
-              {user && rows.map(entry => <ContentPackageRow key={entry.id} entry={entry} userId={user.id} canManage={isLead} people={people.data ?? []} unavailable={query.isError || query.isPending} onDetails={action => setParams({ package: entry.id, ...(action ? { action } : {}) })} />)}
-              {user && <SheetDraftRows>{actions => <ContentPackageRow userId={user.id} canManage={isLead} people={people.data ?? []} hidden={view === 'review'} unavailable={query.isError || query.isPending || people.isError || people.isPending} {...actions} />}</SheetDraftRows>}
-            </tbody>
-          </table>
-        </div>
-        {!rows.length && <p className="text-sm text-muted-foreground">{view === 'review' ? 'No packages are waiting for your review.' : 'Start typing in the blank row to create a package.'}</p>}
-        {params.has('package') && !selected && <p role="alert">This package is unavailable or you do not have access.</p>}
-        {user && selected && <PackageDialog key={selected.id} entry={selected} requestedAction={params.get('action')} userId={user.id} canManage={isLead} onClose={close} onSaved={saved} />}
+  return <div className="p-3 sm:p-6 space-y-4">
+    <div><h1 id="content-packages-title" className="text-xl font-bold">Content Creator PKG List</h1><p className="text-sm text-muted-foreground">Fill in a blank row and save. Choose Export done to map the package to Daily Tasks.</p></div>
+    <div className="flex flex-wrap justify-between gap-2">
+      <div className="flex gap-2">{[['all', 'All packages'], ['mine', 'My packages']].map(([value, label]) => <Button key={value} variant={view === value ? 'default' : 'outline'} aria-pressed={view === value} onClick={() => setView(value)}>{label}</Button>)}</div>
+      <div className="flex flex-wrap gap-2"><Input aria-label="Search packages" placeholder="Search packages, script, caption..." className="w-60" value={search} onChange={e => setSearch(e.target.value)} /><Button variant="outline" aria-expanded={showFilters} onClick={() => setShowFilters(v => !v)}><SlidersHorizontal className="h-4 w-4 mr-2" />Filters{activeFilters > 0 ? ` (${activeFilters})` : ''}</Button><Button variant="outline" disabled={query.isFetching || people.isFetching} onClick={() => { void query.refetch(); void people.refetch() }}>Refresh</Button></div>
+    </div>
+    {showFilters && <div className="rounded-lg border bg-muted/30 p-3 space-y-3">
+      <div className="flex justify-between items-center"><p className="text-sm font-semibold">Filter packages by creation date and creator</p><Button size="sm" variant="ghost" onClick={() => { setCreatorFilter('all'); setStatusFilter('all'); setFromDate(''); setToDate(''); setSearch('') }}>Clear all</Button></div>
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+        <label className="text-sm space-y-1">Creator<select aria-label="Filter by creator" className="w-full rounded-md border bg-background p-2" value={creatorFilter} onChange={e => setCreatorFilter(e.target.value)}><option value="all">All Creators</option>{(people.data ?? []).map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}</select></label>
+        <label className="text-sm space-y-1">From date<Input aria-label="From date" type="date" value={fromDate} max={toDate || undefined} onChange={e => setFromDate(e.target.value)} /></label>
+        <label className="text-sm space-y-1">To date<Input aria-label="To date" type="date" value={toDate} min={fromDate || undefined} onChange={e => setToDate(e.target.value)} /></label>
+        <label className="text-sm space-y-1">Status<select aria-label="Filter by status" className="w-full rounded-md border bg-background p-2" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}><option value="all">All Statuses</option>{Object.entries(CONTENT_STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
       </div>
-    </ContentCellEditorContext.Provider>
-  )
-}
-
-function Thumbnail({ url }: { url: string }) {
-  const [failed, setFailed] = useState(false)
-  if (!/^https?:\/\//i.test(url)) return <span className="text-muted-foreground">No thumbnail</span>
-  return <a href={url} target="_blank" rel="noopener noreferrer" className="text-primary underline">
-    {!failed && <img src={url} alt="Package thumbnail" loading="lazy" referrerPolicy="no-referrer" onError={() => setFailed(true)} className="mb-2 max-h-32 w-full rounded object-contain" />}
-    Open thumbnail
-  </a>
-}
-
-function PackageDialog({ entry: initialEntry, requestedAction, userId, canManage, onClose, onSaved }: { entry?: ContentPackage; requestedAction: string | null; userId: string; canManage?: boolean; onClose: () => void; onSaved: () => void }) {
-  // Keep the version opened by the user so background refreshes cannot overwrite
-  // concurrent edits using a newer version number with stale form values.
-  const [entry] = useState(initialEntry)
-  const editable = !entry || ((entry.creator_id === userId || canManage) && ['draft', 'changes_requested'].includes(entry.status))
-  const canReview = entry?.approver_id === userId && entry.status === 'submitted'
-  const people = useQuery({ queryKey: ['assignable-profiles'], queryFn: fetchAssignableProfiles, enabled: editable || canReview })
-  const types = useQuery({ queryKey: ['task-types'], queryFn: fetchTaskTypes, enabled: canReview })
-  const reviews = useQuery({ queryKey: ['content-reviews', entry?.id], queryFn: () => fetchContentReviews(entry!.id), enabled: !!entry })
-  const [values, setValues] = useState<PackageValues>({
-    package_name: entry?.package_name ?? '',
-    creator_id: entry?.creator_id ?? userId,
-    script: entry?.script ?? '',
-    approver_id: entry?.approver_id ?? '',
-    caption: entry?.caption ?? '',
-    thumbnail_url: entry?.thumbnail_url ?? '',
-  })
-  const [feedback, setFeedback] = useState('')
-  const [approval, setApproval] = useState<ApprovalValues>({ work_date: todayISO(), time_slot: '08:00', task_type_id: '', assigned_to: entry?.creator_id ?? '' })
-  const [error, setError] = useState('')
-  const mutation = useMutation({
-    mutationFn: async (action: 'draft' | 'submit' | 'feedback' | 'changes_requested' | 'approved') => {
-      if (action === 'draft' || action === 'submit') return saveContentPackage(values, userId, action === 'submit', entry)
-      return reviewContentPackage(entry!, action === 'feedback' ? 'submitted' : action, feedback, approval)
-    },
-    onSuccess: (_, action) => { toast.success(action === 'approved' ? 'Approved and added to Daily Tasks' : action === 'submit' ? 'Sent for approval' : action === 'draft' ? 'Draft saved' : 'Feedback sent'); onSaved() },
-    onError: () => setError('Unable to save. The package may have changed or your access may have changed. Close and refresh before retrying; your entries are still here.'),
-  })
-  const submit = (action: 'draft' | 'submit' | 'feedback' | 'changes_requested' | 'approved') => {
-    setError('')
-    if (mutation.isPending) return
-    if (action === 'draft' || action === 'submit') {
-      if (!values.package_name.trim() || !values.approver_id) { setError('Enter a package name and select an approver.'); return }
-      if ((values.creator_id || userId) === values.approver_id) { setError('Creator and approver must be different people.'); return }
-      if (values.thumbnail_url.trim()) {
-        try { if (!['http:', 'https:'].includes(new URL(values.thumbnail_url.trim()).protocol)) throw new Error() }
-        catch { setError('Enter a valid http or https thumbnail URL.'); return }
-      }
-    } else if (action === 'approved') {
-      if (!approval.work_date || !approval.task_type_id || !approval.assigned_to) { setError('Choose a work date, task type, and assigned person.'); return }
-    } else if (!feedback.trim()) { setError('Enter feedback before sending your review.'); return }
-    mutation.mutate(action)
-  }
-  return <Dialog open onOpenChange={open => { if (!open && !mutation.isPending) onClose() }}>
-    <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-      <DialogHeader><DialogTitle>{!entry ? 'Add content package' : canReview ? 'Review content package' : editable ? 'Edit content package' : 'Content package'}</DialogTitle><DialogDescription>{entry ? CONTENT_STATUS_LABELS[entry.status] : 'Choose the person who will review and approve this package.'}</DialogDescription></DialogHeader>
-      <fieldset disabled={mutation.isPending} className="space-y-4 min-w-0">
-        {editable ? <>
-          <label className="block space-y-1 text-sm font-medium">PKG name<Input maxLength={300} value={values.package_name} onChange={event => setValues({ ...values, package_name: event.target.value })} /></label>
-          <label className="block space-y-1 text-sm font-medium">Creator<select aria-label="Creator" className={fieldClass} value={values.creator_id || userId} onChange={event => setValues({ ...values, creator_id: event.target.value })}>
-            <option value="">Select creator</option>{(people.data ?? []).map(person => <option key={person.id} value={person.id} disabled={person.id === values.approver_id}>{person.full_name}</option>)}
-          </select></label>
-          <label className="block space-y-1 text-sm font-medium">Script<Input aria-label="Script" placeholder="Script / notes" value={values.script ?? ''} onChange={event => setValues({ ...values, script: event.target.value })} /></label>
-          <label className="block space-y-1 text-sm font-medium">Approver<select aria-label="Approver" className={fieldClass} value={values.approver_id} onChange={event => setValues({ ...values, approver_id: event.target.value })}>
-            <option value="">Select approver</option>{(people.data ?? []).filter(person => person.id !== (values.creator_id || userId)).map(person => <option key={person.id} value={person.id}>{person.full_name}</option>)}
-          </select></label>
-          <label className="block space-y-1 text-sm font-medium">Caption<textarea aria-label="Caption" className={fieldClass} rows={5} value={values.caption} onChange={event => setValues({ ...values, caption: event.target.value })} /></label>
-          <label className="block space-y-1 text-sm font-medium">Thumbnail URL<Input type="url" placeholder="https://…" value={values.thumbnail_url} onChange={event => setValues({ ...values, thumbnail_url: event.target.value })} /></label>
-          {entry?.feedback && <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 whitespace-pre-wrap">Approver feedback: {entry.feedback}</p>}
-        </> : entry && <div className="space-y-3 text-sm">
-          <h2 className="font-semibold">{entry.package_name}</h2>
-          <p>Creator: {entry.creator?.full_name ?? 'Creator'} · Approver: {entry.approver?.full_name ?? 'Selected approver'}</p>
-          {entry.script && <p className="text-sm"><span className="font-semibold">Script:</span> {entry.script}</p>}
-          <p className="whitespace-pre-wrap break-words">{entry.caption || 'No caption'}</p>
-          <div className="max-w-xs"><Thumbnail url={entry.thumbnail_url} /></div>
-          {entry.status === 'approved' && <Link className="inline-flex items-center gap-2 text-primary underline" to={`/tasks?date=${entry.work_date}`}><Clapperboard className="h-4 w-4" />View Daily Task ({entry.work_date}, {slotLabel(entry.time_slot ?? '')})</Link>}
-        </div>}
-        {canReview && <>
-          {requestedAction === 'approved' && <p className="text-sm">Complete the Daily Task details, then confirm approval below.</p>}
-          {requestedAction === 'changes_requested' && <p className="text-sm">Enter your feedback, then confirm Request changes below.</p>}
-          <label className="block space-y-1 text-sm font-medium">Feedback<textarea aria-label="Feedback" className={fieldClass} rows={3} value={feedback} onChange={event => setFeedback(event.target.value)} placeholder="Share feedback or explain requested changes" /></label>
-          <div className="rounded-md border p-3 space-y-3"><h2 className="font-semibold text-sm">Daily Task details on approval</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <label className="space-y-1 text-sm">Work date<Input type="date" value={approval.work_date ?? ''} onChange={event => setApproval({ ...approval, work_date: event.target.value })} /></label>
-              <label className="space-y-1 text-sm">Time section<select aria-label="Time section" className={fieldClass} value={approval.time_slot ?? ''} onChange={event => setApproval({ ...approval, time_slot: event.target.value || null })}><option value="">Unscheduled</option>{TIME_SLOTS.map(slot => <option key={slot} value={slot}>{slotLabel(slot)}</option>)}</select></label>
-              <label className="space-y-1 text-sm">Task type<select aria-label="Task type" className={fieldClass} value={approval.task_type_id ?? ''} onChange={event => setApproval({ ...approval, task_type_id: event.target.value })}><option value="">Select type</option>{(types.data ?? []).map(type => <option key={type.id} value={type.id}>{type.name}</option>)}</select></label>
-              <label className="space-y-1 text-sm">Assigned person<select aria-label="Assigned person" className={fieldClass} value={approval.assigned_to ?? ''} onChange={event => setApproval({ ...approval, assigned_to: event.target.value })}><option value="">Select person</option>{(people.data ?? []).map(person => <option key={person.id} value={person.id}>{person.full_name}</option>)}</select></label>
-            </div>
-          </div>
-        </>}
-        {(people.isError || (canReview && types.isError)) && <p role="alert" className="text-destructive text-sm">Unable to load people or task types. Close and refresh to try again.</p>}
-        {error && <p role="alert" className="text-destructive text-sm">{error}</p>}
-        <div className="flex flex-wrap justify-end gap-2">
-          <Button variant="outline" onClick={onClose}>Close</Button>
-          {editable && <><Button variant="outline" onClick={() => submit('draft')}>Save draft</Button><Button onClick={() => submit('submit')}>Send for approval</Button></>}
-          {canReview && <><Button variant="outline" onClick={() => submit('feedback')}>Send feedback</Button><Button variant="outline" onClick={() => submit('changes_requested')}>Request changes</Button><Button onClick={() => submit('approved')}>Approve & add to Daily Tasks</Button></>}
-        </div>
-        {mutation.isPending && <p role="status" className="text-sm">Saving...</p>}
-      </fieldset>
-      {entry && <section className="border-t pt-4 space-y-3"><h2 className="text-sm font-semibold">Review history</h2>
-        {reviews.isPending ? <p className="text-sm">Loading history...</p> : reviews.isError ? <p role="alert" className="text-sm text-destructive">Unable to load review history.</p> : !reviews.data?.length ? <p className="text-sm text-muted-foreground">No reviews yet.</p> : reviews.data.map(review => <div key={review.id} className="rounded-md bg-muted p-3 text-sm">
-          <p className="font-medium">{review.reviewer?.full_name ?? 'User'} · {review.action === 'feedback' ? 'Feedback' : review.action === 'submitted' ? 'Sent for approval' : CONTENT_STATUS_LABELS[review.action]}</p>
-          <p className="text-xs text-muted-foreground">{new Date(review.created_at).toLocaleString()}</p>
-          {review.feedback && <p className="mt-2 whitespace-pre-wrap break-words">{review.feedback}</p>}
-        </div>)}
-      </section>}
-    </DialogContent>
-  </Dialog>
+    </div>}
+    {query.isError && <p role="alert" className="text-destructive">Unable to load packages. Your unsaved rows are kept. Refresh to retry.</p>}
+    {query.isPending && <p role="status">Loading packages...</p>}
+    {people.isError && <p role="alert" className="text-destructive">Unable to load Content Creator team members. Refresh to retry.</p>}
+    {people.isSuccess && !people.data.length && <p role="status">No active members in the Content Creator team. Assign employees to the Content Creator department to select them here.</p>}
+    <div className="overflow-x-auto rounded-md border"><table aria-labelledby="content-packages-title" className="responsive-sheet w-full min-w-[1350px] table-fixed border-collapse text-sm">
+      <thead className="bg-muted"><tr>{['PKG name', 'Creator name', 'Script', 'Approved', 'Status', 'Caption', 'Thumbnail', 'Actions'].map(label => <th scope="col" key={label} className="border px-3 py-2 text-left uppercase">{label}</th>)}</tr></thead>
+      <tbody>{user && rows.map(entry => <ContentPackageRow key={entry.id} entry={entry} userId={user.id} canManage={canManage} people={people.data ?? []} highlighted={params.get('package') === entry.id} unavailable={!query.isSuccess || !people.isSuccess} />)}
+      {user && <SheetDraftRows>{actions => <ContentPackageRow userId={user.id} canManage={canManage} people={people.data ?? []} unavailable={!query.isSuccess || !people.isSuccess} {...actions} />}</SheetDraftRows>}</tbody>
+    </table></div>
+    {query.isSuccess && !rows.length && <p className="text-sm text-muted-foreground">{packages.length ? 'No packages match these filters.' : 'Start typing in the blank row to create a package.'}</p>}
+    {params.has('package') && query.isSuccess && !packages.some(p => p.id === params.get('package')) && <p role="alert">This package is unavailable or you do not have access.</p>}
+  </div>
 }

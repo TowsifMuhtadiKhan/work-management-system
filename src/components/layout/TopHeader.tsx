@@ -73,18 +73,18 @@ export function TopHeader({ profile, pageTitle, onOpenMenu, menuOpen, sidebarCol
     type: 'task',
     title: task.file_name,
     subtitle: `Task assigned · ${task.work_date}${task.time_slot ? ' · ' + slotLabel(task.time_slot) : ''}`,
-    link: `/tasks?date=${task.work_date}`,
+    link: `/tasks/${task.work_section ?? 'digital'}?date=${task.work_date}`,
     createdAt: task.created_at,
     isRead: readIds.includes(`task-${task.id}`),
   }))
 
   const reviewNotifications: NotificationItem[] = (contentQuery.data ?? [])
-    .filter(pkg => pkg.approver_id === profile?.id && pkg.status === 'submitted')
+    .filter(pkg => pkg.creator_id === profile?.id && pkg.status === 'export_done')
     .map(pkg => ({
       id: `pkg-${pkg.id}`,
       type: 'review',
       title: pkg.package_name,
-      subtitle: `Review requested by ${pkg.creator?.full_name ?? 'Creator'}`,
+      subtitle: 'Exported to Daily Tasks',
       link: `/content-creator?package=${pkg.id}`,
       createdAt: pkg.created_at,
       isRead: readIds.includes(`pkg-${pkg.id}`),

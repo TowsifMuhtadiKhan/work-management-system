@@ -21,15 +21,14 @@ export function RushPage() {
   const unavailable = query.isPending || query.isError
   return <div className="p-3 sm:p-6 space-y-5">
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <div><h1 className="text-xl font-bold">Rush</h1><p className="text-sm text-muted-foreground">Fill in a blank row, then save. A new blank row appears as you type.</p></div>
+      <div><h1 id="rush-title" className="text-xl font-bold">Rush</h1><p className="text-sm text-muted-foreground">Fill in a blank row, then save. A new blank row appears as you type.</p></div>
       <Button variant="outline" disabled={query.isFetching || people.isFetching} onClick={() => { void query.refetch(); void people.refetch() }}>Refresh</Button>
     </div>
     {query.isError && <p role="alert" className="text-destructive">Unable to load Rush entries. Saving is unavailable until the connection is restored. Your unsaved rows are kept here; refresh to retry.</p>}
     {query.isPending && <p role="status">Loading Rush entries...</p>}
     {people.isError && <p role="alert" className="text-destructive">Unable to load names. Refresh to try again.</p>}
     <div className="overflow-x-auto">
-      <table className="responsive-sheet w-full min-w-[600px] table-fixed border-collapse border border-slate-400 text-sm">
-        <caption className="border border-b-0 border-slate-400 bg-[#a8c4ed] py-2 text-lg font-bold text-black">RUSH</caption>
+      <table aria-labelledby="rush-title" className="responsive-sheet w-full min-w-[600px] table-fixed border-collapse border border-slate-400 text-sm">
         <thead className="bg-[#d0e2f2] text-black"><tr>{['Reporter', 'Name', 'Status'].map(label => <th key={label} scope="col" className="border border-slate-400 px-3 py-2 uppercase font-semibold">{label}</th>)}<th scope="col" className="w-28 border border-slate-400 px-2">Actions</th></tr></thead>
         <tbody>
           {user && entries.map(entry => <RushRow key={entry.id} entry={entry} userId={user.id} names={names} namesUnavailable={people.isPending || people.isError} editable={entry.created_by === user.id || profile?.application_role === 'administrator'} unavailable={unavailable} />)}

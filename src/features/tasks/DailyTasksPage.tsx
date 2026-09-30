@@ -1,3 +1,5 @@
+import { ErrorPage } from '@/pages/ErrorPage'
+import { WORK_SECTION_LABELS, type WorkSection } from '@/types/workSection'
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
@@ -18,7 +20,7 @@ import { exportTasksToExcel } from '@/utils/export'
 import { todayISO } from '@/utils/date'
 import type { TaskFilters } from '@/types/entities'
 
-export function DailyTasksPage({ mine = false }: { mine?: boolean }) {
+export function DailyTasksPage({ mine = false, section = 'digital' }: { mine?: boolean; section?: WorkSection }) {
   const { user } = useAuth()
   const profile = useProfile(user?.id)
   const isAdmin = profile.data?.application_role === 'administrator'
@@ -67,6 +69,7 @@ export function DailyTasksPage({ mine = false }: { mine?: boolean }) {
 
   const queryFilters = {
     ...filters,
+    workSection: mine ? undefined : section,
     workDate,
     search,
     ...(mine ? { assignedTo: user?.id } : {}),
@@ -74,7 +77,7 @@ export function DailyTasksPage({ mine = false }: { mine?: boolean }) {
   }
 
   const query = useQuery({
-    queryKey: ['tasks', workDate, search, filters, mine ? user?.id : 'all', activeDepartmentId ?? 'all'],
+    queryKey: ['tasks', section, workDate, search, filters, mine ? user?.id : 'all', activeDepartmentId ?? 'all'],
     queryFn: () => fetchTasks(queryFilters),
     enabled: !!user?.id,
   })
@@ -85,7 +88,7 @@ export function DailyTasksPage({ mine = false }: { mine?: boolean }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold">{mine ? 'My Tasks' : 'Daily Tasks'}</h1>
+            <h1 className="text-xl font-bold">{mine ? 'My Tasks' : `Daily Task (${WORK_SECTION_LABELS[section]})`}</h1>
             {activeDeptObj && (
               <span className="rounded-full bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200 px-2.5 py-0.5 text-xs font-semibold">
                 {activeDeptObj.name}
@@ -122,7 +125,7 @@ export function DailyTasksPage({ mine = false }: { mine?: boolean }) {
               ))}
             </select>
           )}
-          <MarketingDailySheet workDate={workDate} />
+          <MarketingDailySheet section={section} workDate={workDate} />
           <Input aria-label="Search file name" placeholder="Search file name..." className="w-48" value={search} onChange={e => setSearch(e.target.value)} />
           <Button variant="outline" onClick={() => setShowFilters(!showFilters)}>Filters</Button>
           <Button variant="outline" onClick={() => void query.refetch()}>Refresh</Button>
@@ -135,11 +138,11 @@ export function DailyTasksPage({ mine = false }: { mine?: boolean }) {
         <span className="rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200 px-3 py-1.5">{tasks.filter(t => t.status === 'in_progress').length} in progress</span>
       </div>
     </div>
-    {showFilters && <TaskFiltersPanel filters={filters} onChange={setFilters} onClose={() => setShowFilters(false)} hideAssignee={mine} />}
+    {showFilters && <TaskFiltersPanel section={section} filters={filters} onChange={setFilters} onClose={() => setShowFilters(false)} hideAssignee={mine} />}
     <div className="flex-1 overflow-auto">
-      {query.isError || profile.isError ? <p role="alert" className="p-6 text-destructive">Unable to load tasks. Please refresh and try again.</p>
+      {query.isError || profile.isError ? <ErrorPage title="Unable to load your tasks" description="We couldn?t retrieve this task list. Try again in a moment. If the problem continues, contact your administrator." retrying={query.isFetching || profile.isFetching} onRetry={() => { void query.refetch(); void profile.refetch() }} />
         : query.isPending || profile.isPending ? <p role="status" className="p-6">Loading tasks...</p>
-        : profile.data && <TaskSheet key={workDate + String(mine) + String(activeDepartmentId)} tasks={tasks} profile={profile.data} workDate={workDate} mine={mine} departmentId={activeDepartmentId} />}
+        : profile.data && <TaskSheet section={section} key={section + workDate + String(mine) + String(activeDepartmentId)} tasks={tasks} profile={profile.data} workDate={workDate} mine={mine} departmentId={activeDepartmentId} />}
     </div>
   </div>
 }

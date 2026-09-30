@@ -62,7 +62,7 @@ export function DashboardPage() {
 
   const { data: marketingAds = [] } = useQuery({
     queryKey: ['marketing-ads'],
-    queryFn: fetchMarketingAds,
+    queryFn: () => fetchMarketingAds(),
   })
 
   const { data: marketingProgress = [] } = useQuery({

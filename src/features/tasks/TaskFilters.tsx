@@ -1,3 +1,4 @@
+import type { WorkSection } from '@/types/workSection'
 import { useQuery } from '@tanstack/react-query'
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -13,18 +14,19 @@ import { fetchMarketingAds } from '@/services/marketingAds.service'
 import type { TaskFilters } from '@/types/entities'
 
 interface TaskFiltersPanelProps {
+  section?: WorkSection
   hideAssignee?: boolean
   filters: Omit<TaskFilters, 'workDate' | 'search'>
   onChange: (filters: Omit<TaskFilters, 'workDate' | 'search'>) => void
   onClose: () => void
 }
 
-export function TaskFiltersPanel({ filters, onChange, onClose, hideAssignee = false }: TaskFiltersPanelProps) {
+export function TaskFiltersPanel({ filters, onChange, onClose, hideAssignee = false, section }: TaskFiltersPanelProps) {
   const { data: profiles = [] } = useQuery({ queryKey: ['all-profiles'], queryFn: fetchAllProfiles })
   const { data: taskTypes = [] } = useQuery({ queryKey: ['task-types'], queryFn: fetchTaskTypes })
   const { data: channels = [] } = useQuery({ queryKey: ['channels'], queryFn: fetchChannels })
   const { data: departments = [] } = useQuery({ queryKey: ['departments'], queryFn: fetchDepartments })
-  const { data: marketingAds = [] } = useQuery({ queryKey: ['marketing-ads'], queryFn: fetchMarketingAds })
+  const { data: marketingAds = [] } = useQuery({ queryKey: ['marketing-ads', section], queryFn: () => fetchMarketingAds(section) })
 
   const set = (field: keyof typeof filters) => (value: string) =>
     onChange({ ...filters, [field]: value === '__all' ? undefined : value })

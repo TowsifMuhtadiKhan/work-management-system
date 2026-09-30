@@ -1,3 +1,4 @@
+import type { WorkSection } from '@/types/workSection'
 import { taskCompletionError } from '@/utils/taskCompletion'
 import { PlatformIcon } from './PlatformIcon'
 import { createContext, useContext, useEffect, useId, useState } from 'react'
@@ -41,14 +42,14 @@ import { CaptionEditor } from './CaptionEditor'
 import { ContentSourceIcon } from '@/components/common/ContentSourceIcon'
 
 type Option = { id: string; label: string; color?: string | null }
-type Props = { tasks: Task[]; profile: Profile; workDate: string; mine: boolean; departmentId?: string }
+type Props = { section?: WorkSection; tasks: Task[]; profile: Profile; workDate: string; mine: boolean; departmentId?: string }
 const CellEditorContext = createContext<{
   host: HTMLDivElement | null;
   selected: string | null;
   select: (id: string) => void;
 }>({ host: null, selected: null, select: () => {} })
 
-export function TaskSheet({ tasks, profile, workDate, mine, departmentId }: Props) {
+export function TaskSheet({ tasks, profile, workDate, mine, departmentId, section = 'digital' }: Props) {
   const queryClient = useQueryClient()
   const [history, setHistory] = useState<Task | null>(null)
   const [deletingTask, setDeletingTask] = useState<Task | null>(null)
@@ -60,7 +61,7 @@ export function TaskSheet({ tasks, profile, workDate, mine, departmentId }: Prop
   const people = useQuery({ queryKey: ['assignable-profiles'], queryFn: fetchAssignableProfiles })
   const types = useQuery({ queryKey: ['task-types'], queryFn: fetchTaskTypes })
   const channels = useQuery({ queryKey: ['channels'], queryFn: fetchChannels })
-  const ads = useQuery({ queryKey: ['marketing-ads'], queryFn: fetchMarketingAds })
+  const ads = useQuery({ queryKey: ['marketing-ads', section], queryFn: () => fetchMarketingAds(section) })
 
   const rawPeople = people.data ?? []
   const filteredPeople = departmentId
@@ -86,7 +87,7 @@ export function TaskSheet({ tasks, profile, workDate, mine, departmentId }: Prop
     priority: Object.entries(TASK_PRIORITY_LABELS).map(([id, label]) => ({ id, label })),
   }
   return <CellEditorContext.Provider value={{ host: editorHost, selected: selectedCell, select: setSelectedCell }}><div className="task-sheet p-2 sm:p-4 space-y-4">
-    <div data-cell-editor className="cell-editor-panel relative w-full max-h-[40vh] overflow-y-auto rounded-lg border border-indigo-200 bg-background p-3 shadow-sm dark:border-indigo-800">
+    <div data-cell-editor className="cell-editor-panel sticky top-0 z-20 w-full max-h-[40vh] overflow-y-auto rounded-lg border border-indigo-200 bg-background p-3 shadow-sm dark:border-indigo-800">
       {selectedCell && <Button variant="ghost" size="sm" className="mb-2" onClick={() => setSelectedCell(null)}>Close expanded editor</Button>}
       <div ref={setEditorHost} className="empty:hidden" />
     </div>
@@ -112,8 +113,8 @@ export function TaskSheet({ tasks, profile, workDate, mine, departmentId }: Prop
         <div id={contentId} hidden={isCollapsed}>
         {(rows.length || canCreate) ? <div className="overflow-x-auto"><table className="responsive-sheet w-full text-xs">
           <thead className="sheet-columns"><tr><th scope="col" className="w-10 px-1"><span className="sr-only">Source</span></th>{['File name', 'Type', 'Assigned person', 'Status', 'Channel / Page', 'Marketing ad', 'Remarks', 'Caption', 'YouTube link', 'Facebook link', 'Priority', 'Actions'].map(label => <th key={label} className={`text-left px-2 py-1.5 whitespace-nowrap font-extrabold ${label === 'Actions' ? 'sheet-actions w-[68px] min-w-[68px] max-w-[68px] text-center whitespace-nowrap' : ''}`}><span className="inline-flex items-center gap-1.5">{(label === 'YouTube link' || label === 'Facebook link') && <PlatformIcon platform={label} />}{label}</span></th>)}</tr></thead>
-          <tbody>{rows.map(task => <SheetRow key={task.id} task={task} slot={slot} profile={profile} workDate={workDate} mine={mine} catalogs={catalogs} editable={permissions.canEditTask(task.assigned_to, task.assigned_profile)} onHistory={() => setHistory(task)} onDelete={() => setDeletingTask(task)} />)}
-            {canCreate && <DraftRows key={`${workDate}-${mine}-${profile.id}`} slot={slot} profile={profile} workDate={workDate} mine={mine} catalogs={catalogs} editable />}
+          <tbody>{rows.map(task => <SheetRow section={section} key={task.id} task={task} slot={slot} profile={profile} workDate={workDate} mine={mine} catalogs={catalogs} editable={permissions.canEditTask(task.assigned_to, task.assigned_profile)} onHistory={() => setHistory(task)} onDelete={() => setDeletingTask(task)} />)}
+            {canCreate && <DraftRows section={section} key={`${workDate}-${mine}-${profile.id}`} slot={slot} profile={profile} workDate={workDate} mine={mine} catalogs={catalogs} editable />}
           </tbody>
         </table></div> : <p className="px-4 py-3 text-xs text-muted-foreground">No tasks in this section.</p>}
         </div>
@@ -161,6 +162,7 @@ export function TaskSheet({ tasks, profile, workDate, mine, departmentId }: Prop
 }
 
 type RowProps = {
+  section?: WorkSection;
   task?: Task; slot: string; profile: Profile; workDate: string; mine: boolean;
   catalogs: Record<string, Option[]>; editable: boolean; onRemove?: () => void; onHistory?: () => void; onStartEditing?: () => void;
   onDelete?: () => void;
@@ -289,7 +291,7 @@ function SheetDropdown({
   )
 }
 
-function SheetRow({ task, slot, profile, workDate, mine, catalogs, editable, onRemove, onHistory, onStartEditing, onDelete }: RowProps) {
+function SheetRow({ section = 'digital', task, slot, profile, workDate, mine, catalogs, editable, onRemove, onHistory, onStartEditing, onDelete }: RowProps) {
   const cellEditor = useContext(CellEditorContext)
   const rowId = useId()
   const [focusedField, setFocusedField] = useState<string>('file_name')
@@ -301,7 +303,7 @@ function SheetRow({ task, slot, profile, workDate, mine, catalogs, editable, onR
     setChanges(v => ({ ...v, [field]: value }))
     if (value.trim()) onStartEditing?.()
   }
-  const defaults: DbTaskInsert = { work_date: workDate, time_slot: slot || null, file_name: '', task_type_id: '', assigned_to: mine ? profile.id : '', status: 'pending', priority: 'normal', channel_id: null, marketing_ad_id: null, remarks: null, caption: null, youtube_link: null, facebook_link: null, google_drive_link: null, created_by: profile.id }
+  const defaults: DbTaskInsert = { work_section: section, work_date: workDate, time_slot: slot || null, file_name: '', task_type_id: '', assigned_to: mine ? profile.id : '', status: 'pending', priority: 'normal', channel_id: null, marketing_ad_id: null, remarks: null, caption: null, youtube_link: null, facebook_link: null, google_drive_link: null, created_by: profile.id }
   const form = { ...defaults, ...task, ...changes }
   const dirty = Object.keys(changes).length > 0
   const completionError = taskCompletionError(form)

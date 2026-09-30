@@ -1,19 +1,18 @@
+import type { WorkSection } from '@/types/workSection'
 import { supabase } from '@/lib/supabase/client'
 
-export type ContentStatus = 'draft' | 'submitted' | 'changes_requested' | 'approved'
-export const CONTENT_STATUS_LABELS: Record<ContentStatus, string> = {
-  draft: 'Draft', submitted: 'Awaiting approval', changes_requested: 'Changes requested', approved: 'Approved',
-}
+export type ContentStatus = 'video_panel' | 'export_done'
+export const CONTENT_STATUS_LABELS: Record<ContentStatus, string> = { video_panel: 'Video panel', export_done: 'Export done' }
 export interface ContentPackage {
   id: string
+  work_section?: WorkSection
   package_name: string
   creator_id: string
-  script?: string | null
-  approver_id: string
+  script: string
   caption: string
   thumbnail_url: string
+  approval_state: 'ongoing' | 'done'
   status: ContentStatus
-  feedback: string
   work_date: string | null
   time_slot: string | null
   task_type_id: string | null
@@ -22,54 +21,32 @@ export interface ContentPackage {
   created_at: string
   updated_at: string
   creator?: { full_name: string } | null
-  approver?: { full_name: string } | null
 }
-export interface ContentReview {
-  id: string
-  action: 'submitted' | 'feedback' | 'changes_requested' | 'approved'
-  feedback: string
-  created_at: string
-  reviewer?: { full_name: string } | null
-}
-export type PackageValues = Pick<ContentPackage, 'package_name' | 'approver_id' | 'caption' | 'thumbnail_url'> & {
-  creator_id?: string
-  script?: string
-}
-export type ApprovalValues = Pick<ContentPackage, 'work_date' | 'time_slot' | 'task_type_id' | 'assigned_to'>
+export type PackageValues = Pick<ContentPackage, 'package_name' | 'creator_id' | 'script' | 'caption' | 'thumbnail_url' | 'approval_state' | 'status'>
+export type ApprovalValues = Pick<ContentPackage, 'work_date' | 'time_slot' | 'task_type_id' | 'assigned_to' | 'work_section'>
+const SELECT = '*, creator:profiles!content_packages_creator_id_fkey(full_name)'
 
-const SELECT = '*, creator:profiles!content_packages_creator_id_fkey(full_name), approver:profiles!content_packages_approver_id_fkey(full_name)'
+export async function fetchContentCreators(): Promise<{ id: string; full_name: string }[]> {
+  const { data, error } = await supabase.from('profiles').select('id, full_name, department:departments!inner(name, is_active)').eq('is_active', true).eq('department.is_active', true).order('full_name')
+  if (error) throw error
+  return (data ?? []).filter(person => {
+    const department = person.department as unknown as { name: string }
+    return ['content creator', 'content creator team'].includes(department.name.trim().toLowerCase())
+  }).map(({ id, full_name }) => ({ id, full_name }))
+}
 
 export async function fetchContentPackages(): Promise<ContentPackage[]> {
   const { data, error } = await supabase.from('content_packages').select(SELECT).order('created_at', { ascending: false })
   if (error) throw error
   return data ?? []
 }
-export async function fetchContentReviews(packageId: string): Promise<ContentReview[]> {
-  const { data, error } = await supabase.from('content_reviews').select('*, reviewer:profiles!content_reviews_reviewer_id_fkey(full_name)').eq('package_id', packageId).order('created_at')
-  if (error) throw error
-  return data ?? []
-}
-export async function saveContentPackage(values: PackageValues, defaultCreatorId: string, submit: boolean, entry?: ContentPackage) {
-  const creatorId = values.creator_id || entry?.creator_id || defaultCreatorId
-  const payload = {
-    ...values,
-    creator_id: creatorId,
-    package_name: values.package_name.trim(),
-    script: (values.script ?? '').trim(),
-    thumbnail_url: values.thumbnail_url.trim(),
-    status: submit ? 'submitted' : entry?.status ?? 'draft',
-  }
+
+export async function saveContentPackage(values: PackageValues, entry?: ContentPackage, mapping?: ApprovalValues): Promise<ContentPackage> {
+  const payload = { ...values, package_name: values.package_name.trim(), thumbnail_url: values.thumbnail_url.trim(), ...(values.status === 'export_done' ? mapping : {}) }
   const query = entry
-    ? supabase.from('content_packages').update(payload).eq('id', entry.id).eq('status', entry.status).eq('updated_at', entry.updated_at)
+    ? supabase.from('content_packages').update(payload).eq('id', entry.id).eq('updated_at', entry.updated_at)
     : supabase.from('content_packages').insert(payload)
   const { data, error } = await query.select(SELECT).single()
-  if (error) throw error
-  return data as ContentPackage
-}
-export async function reviewContentPackage(entry: ContentPackage, status: 'submitted' | 'changes_requested' | 'approved', feedback: string, approval?: ApprovalValues) {
-  const { data, error } = await supabase.from('content_packages')
-    .update({ status, feedback: feedback.trim(), ...(status === 'approved' ? approval : {}) })
-    .eq('id', entry.id).eq('status', 'submitted').eq('updated_at', entry.updated_at).select(SELECT).single()
   if (error) throw error
   return data as ContentPackage
 }

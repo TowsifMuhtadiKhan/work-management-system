@@ -109,7 +109,7 @@ export function Sidebar({ profile, className, collapsed = false }: SidebarProps)
             return true
           }).map((item) => (
             <div key={item.href}>
-              <SidebarNavLink item={item} collapsed={collapsed} />
+              {item.href === '/marketing' ? <CategoryMenu collapsed={collapsed} category="marketing" /> : <SidebarNavLink item={item} collapsed={collapsed} />}
               {item.href === '/dashboard' && showTasksMenu && (
                 <TasksMenu
                   collapsed={collapsed}
@@ -150,44 +150,34 @@ export function Sidebar({ profile, className, collapsed = false }: SidebarProps)
   )
 }
 
-function TasksMenu({
-  collapsed,
-  showDailyTasks = true,
-}: {
-  collapsed: boolean
-  showDailyTasks?: boolean
-}) {
+function TasksMenu({ collapsed, showDailyTasks = true }: { collapsed: boolean; showDailyTasks?: boolean }) {
+  return showDailyTasks ? <CategoryMenu collapsed={collapsed} category="tasks" /> : null
+}
+
+function CategoryMenu({ collapsed, category }: { collapsed: boolean; category: 'tasks' | 'marketing' }) {
   const submenuId = useId()
   const { pathname } = useLocation()
-  const isActive = pathname === '/tasks'
+  const isActive = pathname === '/' + category || pathname.startsWith('/' + category + '/')
   const [expanded, setExpanded] = useState(true)
-
-  if (collapsed) return (
-    <div className="space-y-1 mt-1">
-      {showDailyTasks && <SidebarNavLink collapsed item={{ label: 'Daily Task', shortLabel: 'Daily', href: '/tasks', icon: CalendarDays }} />}
+  const isTasks = category === 'tasks'
+  const Icon = isTasks ? ClipboardList : TrendingUp
+  const links = (['Digital', 'Web'] as const).map(type => ({
+    label: (isTasks ? 'Daily Task' : 'Marketing') + ' (' + type + ')',
+    shortLabel: (isTasks ? 'Task ' : 'Mkt ') + type,
+    href: '/' + category + '/' + type.toLowerCase(),
+    icon: isTasks ? CalendarDays : TrendingUp,
+  }))
+  if (collapsed) return <div className="space-y-1 mt-1">{links.map(item => <SidebarNavLink key={item.href} collapsed item={item} />)}</div>
+  return <div>
+    <button type="button" aria-expanded={expanded} aria-controls={submenuId} onClick={() => setExpanded(!expanded)}
+      className={cn('flex items-center justify-between w-full px-3 py-2 rounded-md text-sm transition-colors', isActive ? 'text-sidebar-primary font-medium' : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground')}>
+      <span className="flex items-center gap-2.5"><Icon className="h-4 w-4" />{isTasks ? 'Tasks' : 'Marketing'}</span>
+      <ChevronRight className={cn('h-3 w-3 transition-transform', expanded && 'rotate-90')} />
+    </button>
+    <div id={submenuId} hidden={!expanded} className="ml-5 border-l border-sidebar-border pl-2 space-y-0.5">
+      {links.map(item => <SidebarNavLink key={item.href} item={item} />)}
     </div>
-  )
-
-  return (
-    <div>
-      <button
-        type="button"
-        aria-expanded={expanded}
-        aria-controls={submenuId}
-        onClick={() => setExpanded(!expanded)}
-        className={cn(
-          'flex items-center justify-between w-full px-3 py-2 rounded-md text-sm transition-colors',
-          isActive ? 'text-sidebar-primary font-medium' : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground'
-        )}
-      >
-        <span className="flex items-center gap-2.5"><ClipboardList className="h-4 w-4" />Tasks</span>
-        <ChevronRight className={cn('h-3 w-3 transition-transform', expanded && 'rotate-90')} />
-      </button>
-      <div id={submenuId} hidden={!expanded} className="ml-5 border-l border-sidebar-border pl-2 space-y-0.5">
-        {showDailyTasks && <SidebarNavLink item={{ label: 'Daily Task', href: '/tasks', icon: CalendarDays }} />}
-      </div>
-    </div>
-  )
+  </div>
 }
 
 function SidebarNavLink({ item, collapsed = false }: { item: NavItem; collapsed?: boolean }) {

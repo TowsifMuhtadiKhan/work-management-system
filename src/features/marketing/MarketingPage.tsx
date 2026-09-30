@@ -1,3 +1,5 @@
+import { ErrorPage } from '@/pages/ErrorPage'
+import { WORK_SECTION_LABELS, type WorkSection } from '@/types/workSection'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { FileSpreadsheet, ChevronRight } from 'lucide-react'
@@ -8,17 +10,17 @@ import { Progress } from '@/components/ui/progress'
 import { MarketingCampaignDialog } from './MarketingCampaignDialog'
 import type { MarketingAd } from '@/types/entities'
 
-export function MarketingPage() {
+export function MarketingPage({ section = 'digital' }: { section?: WorkSection }) {
   const [date, setDate] = useState(todayISO())
   const [selectedAd, setSelectedAd] = useState<MarketingAd | null>(null)
-  const ads = useQuery({ queryKey: ['marketing-ads'], queryFn: fetchMarketingAds })
-  const tasks = useQuery({ queryKey: ['marketing-progress', date], queryFn: () => fetchMarketingProgress(date) })
+  const ads = useQuery({ queryKey: ['marketing-ads', section], queryFn: () => fetchMarketingAds(section) })
+  const tasks = useQuery({ queryKey: ['marketing-progress', date, section], queryFn: () => fetchMarketingProgress(date, section) })
 
   return (
     <div className="p-3 sm:p-6 space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold">Marketing Tracking</h1>
+          <h1 className="text-xl font-bold">Marketing ({WORK_SECTION_LABELS[section]})</h1>
           <p className="text-sm text-muted-foreground">
             Campaign delivery and daily targets. Click any campaign card to view duration reports and download Excel.
           </p>
@@ -37,7 +39,7 @@ export function MarketingPage() {
       </div>
 
       {ads.isError || tasks.isError ? (
-        <p role="alert">Unable to load campaigns. Please refresh and try again.</p>
+        <ErrorPage title="Unable to load campaigns" retrying={ads.isFetching || tasks.isFetching} onRetry={() => { void ads.refetch(); void tasks.refetch() }} />
       ) : ads.isPending || tasks.isPending ? (
         <p role="status">Loading campaigns...</p>
       ) : !ads.data.length ? (

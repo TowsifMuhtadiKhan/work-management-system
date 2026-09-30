@@ -7,7 +7,7 @@ const TASK_SELECT = `
   *,
   task_type:task_types(*),
   channel:channels(*),
-  marketing_ad:marketing_ads(*),
+  marketing_ad:marketing_ads!tasks_marketing_ad_id_fkey(*),
   assigned_profile:profiles!tasks_assigned_to_fkey(
     id, full_name, email, employee_code, designation, avatar_url, manager_id, application_role, department_id
   ),
@@ -20,6 +20,7 @@ const TASK_SELECT = `
 export async function fetchTasks(filters: TaskFilters): Promise<Task[]> {
   let query = supabase.from('tasks').select(TASK_SELECT)
 
+  if (filters.workSection) query = query.eq('work_section', filters.workSection)
   if (filters.workDate) {
     query = query.eq('work_date', filters.workDate)
   }

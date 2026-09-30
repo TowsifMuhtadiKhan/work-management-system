@@ -1,3 +1,4 @@
+import type { WorkSection } from './workSection'
 // ─────────────────────────────────────────────────────────────────────────────
 // Application-level entities — enriched joins used in the UI
 // ─────────────────────────────────────────────────────────────────────────────
@@ -69,6 +70,7 @@ export const DEFAULT_DEPARTMENT_FEATURES: DepartmentFeatureId[] = [
 // ─── Filter/Query types ───────────────────────────────────────────────────────
 
 export interface TaskFilters {
+  workSection?: WorkSection
   workDate?: string
   assignedTo?: string
   status?: string

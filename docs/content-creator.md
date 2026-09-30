@@ -1,12 +1,28 @@
-# Content Creator
+﻿# Content Creator
 
-Apply `supabase/migrations/20260927155159_content_creator_approval.sql` after the existing schema, RLS, administration access, task work-time, and task completion migrations. It is independent of the Rush migration. This migration has been tested locally; it must also be applied to the Supabase project configured by `VITE_SUPABASE_URL` before using this feature.
+Apply `supabase/migrations/20260930152002_content_export_workflow.sql` after the existing Content Creator migrations (including the script column migration) before running this UI against Supabase.
 
-- Active employees type directly into a blank sheet row with a name, caption, optional thumbnail URL, and a selected approver. A new blank row appears automatically, matching Daily Tasks. Use the row's Save, Send for approval, or Cancel icons; there is no Add button. The creator cannot select themselves.
-- Save a draft or send it for approval. Only the creator may edit a draft or a package returned for changes.
-- Only the selected approver can send feedback, request changes, or approve a submitted package. Any active employee can be selected as an approver.
-- Approval requires a task type, assignee, and work date. The approver can choose a time section, including Unscheduled. Approval and creation of the Daily Task happen together in one database transaction.
-- Feedback and submission history are retained across revisions. Approved packages are immutable, and their linked Daily Task cannot be deleted; its normal task fields can still be edited according to existing task permissions.
-- The leftmost clapperboard icon on a Daily Task links to its approved source package. Approved packages are visible to active employees; drafts and pending packages are visible to their creator, selected approver, and administrators. Administrators cannot approve another person's package unless selected as its approver.
+- **Approved** has Ongoing and Done options. It is independent of export status.
+- **Status** has Video panel and Export done options. Save an Export done row to open the Daily Task mapping dialog. Confirming the mapping saves the package and creates exactly one task in the same transaction. Cancel keeps the unsaved row available.
+- **Creator name** lists active employees in an active department named `Content Creator` or `Content Creator Team` (case insensitive). Other employees are excluded; the database enforces the same membership rule.
+- **Script** opens a large rich-text popup with formatting, links, lists, and undo/redo. Apply the editor changes, then save the row.
+- **Thumbnail** accepts plain text/notes. Existing URLs remain stored as text.
+- Filters combine creator, inclusive creation-date range (local calendar dates), and status, along with search.
+- The creator and existing manager/admin roles can edit a saved package until export. Exported packages are immutable and retain their Daily Task link. Old approval/review history is retained in the database; previously approved packages become Done / Export done without creating duplicate tasks. Other old statuses become Ongoing / Video panel.
 
-Validation: `node --test tests/content-approval-db.test.mjs` and `npx playwright test tests/browser/content-creator.spec.ts`.
+## Daily Task mapping
+
+| Package / mapping field | Daily Task field |
+| --- | --- |
+| Package name | File name |
+| Caption | Caption |
+| Creator name + thumbnail text | Remarks (`Creator Thumb: text`) |
+| Selected work date | Work date |
+| Selected time section | Time slot (or Unscheduled) |
+| Selected task type | Task type |
+| Selected assigned person (defaults to creator) | Assigned person |
+| Package ID | Content source link |
+
+Tasks start Pending with Normal priority. Script stays on the linked source package.
+
+Validation: `node --test tests/content-export-db.test.mjs`, `npx playwright test tests/browser/content-creator.spec.ts`, `npm run build`. The older `content-approval-db.test.mjs` continues to test the historical approval migration in isolation.
