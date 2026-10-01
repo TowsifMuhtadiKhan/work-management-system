@@ -267,7 +267,7 @@ export function TaskSheet({
                             mine={mine}
                             catalogs={catalogs}
                             editable={permissions.canEditTask(
-                              task.assigned_to,
+                              task.assigned_to ?? undefined,
                               task.assigned_profile,
                             )}
                             onHistory={() => setHistory(task)}

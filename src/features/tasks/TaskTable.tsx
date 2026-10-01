@@ -1,66 +1,97 @@
-import { captionText } from '@/utils/caption'
-import { ContentSourceIcon } from '@/components/common/ContentSourceIcon'
-import { useState } from 'react'
-import { ExternalLink, Edit, History, Trash2, MoreHorizontal } from 'lucide-react'
-import { toast } from 'sonner'
+import { captionText } from "@/utils/caption";
+import { ContentSourceIcon } from "@/components/common/ContentSourceIcon";
+import { useState } from "react";
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from '@/components/ui/table'
-import { Button } from '@/components/ui/button'
+  ExternalLink,
+  Edit,
+  History,
+  Trash2,
+  MoreHorizontal,
+} from "lucide-react";
+import { toast } from "sonner";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
-  DropdownMenuSeparator, DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { StatusBadge } from '@/components/common/StatusBadge'
-import { PriorityBadge } from '@/components/common/PriorityBadge'
-import { UserAvatar } from '@/components/common/UserAvatar'
-import { TaskFormDialog } from '@/features/tasks/TaskFormDialog'
-import { TaskHistoryDrawer } from '@/features/tasks/TaskHistoryDrawer'
-import { usePermissions } from '@/hooks/usePermissions'
-import { deleteTask } from '@/services/tasks.service'
-import { formatRelative } from '@/utils/date'
-import { shortenUrl } from '@/utils/format'
-import { Pagination } from '@/components/common/Pagination'
-import type { Task, Profile } from '@/types/entities'
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { StatusBadge } from "@/components/common/StatusBadge";
+import { PriorityBadge } from "@/components/common/PriorityBadge";
+import { UserAvatar } from "@/components/common/UserAvatar";
+import { TaskFormDialog } from "@/features/tasks/TaskFormDialog";
+import { TaskHistoryDrawer } from "@/features/tasks/TaskHistoryDrawer";
+import { usePermissions } from "@/hooks/usePermissions";
+import { deleteTask } from "@/services/tasks.service";
+import { formatRelative } from "@/utils/date";
+import { shortenUrl } from "@/utils/format";
+import { Pagination } from "@/components/common/Pagination";
+import type { Task, Profile } from "@/types/entities";
 
 interface TaskTableProps {
-  tasks: Task[]
-  currentProfile: Profile | null
-  onRefetch: () => void
+  tasks: Task[];
+  currentProfile: Profile | null;
+  onRefetch: () => void;
 }
 
-export function TaskTable({ tasks, currentProfile, onRefetch }: TaskTableProps) {
-  const { isAdmin, canEditTask } = usePermissions(currentProfile)
-  const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize, setPageSize] = useState(10)
-  const [editTask, setEditTask] = useState<Task | null>(null)
-  const [historyTask, setHistoryTask] = useState<Task | null>(null)
-  const [deleteTaskId, setDeleteTaskId] = useState<string | null>(null)
-  const [deleting, setDeleting] = useState(false)
+export function TaskTable({
+  tasks,
+  currentProfile,
+  onRefetch,
+}: TaskTableProps) {
+  const { isAdmin, canEditTask } = usePermissions(currentProfile);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [editTask, setEditTask] = useState<Task | null>(null);
+  const [historyTask, setHistoryTask] = useState<Task | null>(null);
+  const [deleteTaskId, setDeleteTaskId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
-  const totalPages = Math.max(1, Math.ceil(tasks.length / pageSize))
-  const safeCurrentPage = Math.min(currentPage, totalPages)
-  const paginatedTasks = tasks.slice((safeCurrentPage - 1) * pageSize, safeCurrentPage * pageSize)
+  const totalPages = Math.max(1, Math.ceil(tasks.length / pageSize));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const paginatedTasks = tasks.slice(
+    (safeCurrentPage - 1) * pageSize,
+    safeCurrentPage * pageSize,
+  );
 
   const handleDelete = async () => {
-    if (!deleteTaskId) return
-    setDeleting(true)
+    if (!deleteTaskId) return;
+    setDeleting(true);
     try {
-      await deleteTask(deleteTaskId)
-      toast.success('Task deleted')
-      onRefetch()
+      await deleteTask(deleteTaskId);
+      toast.success("Task deleted");
+      onRefetch();
     } catch {
-      toast.error('Failed to delete task')
+      toast.error("Failed to delete task");
     } finally {
-      setDeleting(false)
-      setDeleteTaskId(null)
+      setDeleting(false);
+      setDeleteTaskId(null);
     }
-  }
+  };
 
   return (
     <>
@@ -68,7 +99,9 @@ export function TaskTable({ tasks, currentProfile, onRefetch }: TaskTableProps) 
         <Table className="task-table text-xs">
           <TableHeader>
             <TableRow className="bg-muted/50 hover:bg-muted/50">
-              <TableHead className="w-10"><span className="sr-only">Source</span></TableHead>
+              <TableHead className="w-10">
+                <span className="sr-only">Source</span>
+              </TableHead>
               <TableHead className="w-6 text-center">#</TableHead>
               <TableHead className="min-w-[160px]">File Name</TableHead>
               <TableHead className="w-24">Type</TableHead>
@@ -87,13 +120,20 @@ export function TaskTable({ tasks, currentProfile, onRefetch }: TaskTableProps) 
           </TableHeader>
           <TableBody>
             {paginatedTasks.map((task, index) => {
-              const canEdit = canEditTask(task.assigned_to, task.assigned_profile as any)
-              const rowNumber = (safeCurrentPage - 1) * pageSize + index + 1
+              const canEdit = canEditTask(
+                task.assigned_to ?? undefined,
+                task.assigned_profile as any,
+              );
+              const rowNumber = (safeCurrentPage - 1) * pageSize + index + 1;
 
               return (
                 <TableRow key={task.id} className="group">
-                  <TableCell><ContentSourceIcon packageId={task.source_content_id} /></TableCell>
-                  <TableCell className="text-center text-muted-foreground">{rowNumber}</TableCell>
+                  <TableCell>
+                    <ContentSourceIcon packageId={task.source_content_id} />
+                  </TableCell>
+                  <TableCell className="text-center text-muted-foreground">
+                    {rowNumber}
+                  </TableCell>
 
                   {/* File Name */}
                   <TableCell className="font-medium">
@@ -108,7 +148,7 @@ export function TaskTable({ tasks, currentProfile, onRefetch }: TaskTableProps) 
                       <span
                         className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold"
                         style={{
-                          backgroundColor: task.task_type.color_hex + '22',
+                          backgroundColor: task.task_type.color_hex + "22",
                           color: task.task_type.color_hex,
                         }}
                       >
@@ -161,9 +201,10 @@ export function TaskTable({ tasks, currentProfile, onRefetch }: TaskTableProps) 
                       <span
                         className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold"
                         style={{
-                          backgroundColor: (task.channel.color_hex || '#3B82F6') + '22',
-                          color: task.channel.color_hex || '#3B82F6',
-                          border: `1px solid ${(task.channel.color_hex || '#3B82F6')}44`,
+                          backgroundColor:
+                            (task.channel.color_hex || "#3B82F6") + "22",
+                          color: task.channel.color_hex || "#3B82F6",
+                          border: `1px solid ${task.channel.color_hex || "#3B82F6"}44`,
                         }}
                       >
                         {task.channel.name}
@@ -177,7 +218,9 @@ export function TaskTable({ tasks, currentProfile, onRefetch }: TaskTableProps) 
                   <TableCell>
                     {task.marketing_ad ? (
                       <div>
-                        <p className="line-clamp-1">{task.marketing_ad.advertiser}</p>
+                        <p className="line-clamp-1">
+                          {task.marketing_ad.advertiser}
+                        </p>
                         <p className="text-[10px] text-muted-foreground line-clamp-1">
                           {task.marketing_ad.package_type}
                         </p>
@@ -197,8 +240,17 @@ export function TaskTable({ tasks, currentProfile, onRefetch }: TaskTableProps) 
                           </p>
                         </TooltipTrigger>
                         <TooltipContent className="max-w-xs">
-                          {task.remarks && <p><strong>Remarks:</strong> {task.remarks}</p>}
-                          {task.caption && <p><strong>Caption:</strong> {captionText(task.caption)}</p>}
+                          {task.remarks && (
+                            <p>
+                              <strong>Remarks:</strong> {task.remarks}
+                            </p>
+                          )}
+                          {task.caption && (
+                            <p>
+                              <strong>Caption:</strong>{" "}
+                              {captionText(task.caption)}
+                            </p>
+                          )}
                         </TooltipContent>
                       </Tooltip>
                     ) : (
@@ -312,7 +364,7 @@ export function TaskTable({ tasks, currentProfile, onRefetch }: TaskTableProps) 
                     </DropdownMenu>
                   </TableCell>
                 </TableRow>
-              )
+              );
             })}
           </TableBody>
         </Table>
@@ -339,9 +391,9 @@ export function TaskTable({ tasks, currentProfile, onRefetch }: TaskTableProps) 
           open={!!editTask}
           onOpenChange={(open) => !open && setEditTask(null)}
           onSuccess={() => {
-            setEditTask(null)
-            onRefetch()
-            toast.success('Task updated')
+            setEditTask(null);
+            onRefetch();
+            toast.success("Task updated");
           }}
         />
       )}
@@ -356,12 +408,16 @@ export function TaskTable({ tasks, currentProfile, onRefetch }: TaskTableProps) 
       )}
 
       {/* Delete Confirm */}
-      <AlertDialog open={!!deleteTaskId} onOpenChange={(open) => !open && setDeleteTaskId(null)}>
+      <AlertDialog
+        open={!!deleteTaskId}
+        onOpenChange={(open) => !open && setDeleteTaskId(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Task</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. The task and its entire history will be permanently deleted.
+              This action cannot be undone. The task and its entire history will
+              be permanently deleted.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -371,11 +427,11 @@ export function TaskTable({ tasks, currentProfile, onRefetch }: TaskTableProps) 
               disabled={deleting}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {deleting ? 'Deleting…' : 'Delete'}
+              {deleting ? "Deleting…" : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </>
-  )
+  );
 }

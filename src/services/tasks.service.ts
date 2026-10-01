@@ -1,7 +1,7 @@
-import { supabase } from '@/lib/supabase/client'
-import { taskCompletionError } from '@/utils/taskCompletion'
-import type { Task, TaskFilters } from '@/types/entities'
-import type { DbTaskInsert, DbTaskUpdate } from '@/types/database'
+import { supabase } from "@/lib/supabase/client";
+import { taskCompletionError } from "@/utils/taskCompletion";
+import type { Task, TaskFilters } from "@/types/entities";
+import type { DbTaskInsert, DbTaskUpdate } from "@/types/database";
 
 const TASK_SELECT = `
   *,
@@ -13,108 +13,124 @@ const TASK_SELECT = `
   ),
   created_by_profile:profiles!tasks_created_by_fkey(id, full_name, department_id),
   updated_by_profile:profiles!tasks_updated_by_fkey(id, full_name)
-`
+`;
 
 // ─── Fetch tasks for a given work_date with optional filters ─────────────────
 
 export async function fetchTasks(filters: TaskFilters): Promise<Task[]> {
-  let query = supabase.from('tasks').select(TASK_SELECT)
+  let query = supabase.from("tasks").select(TASK_SELECT);
 
-  if (filters.workSection) query = query.eq('work_section', filters.workSection)
+  if (filters.workSection)
+    query = query.eq("work_section", filters.workSection);
   if (filters.workDate) {
-    query = query.eq('work_date', filters.workDate)
+    query = query.eq("work_date", filters.workDate);
   }
   if (filters.assignedTo) {
-    query = query.eq('assigned_to', filters.assignedTo)
+    query = query.eq("assigned_to", filters.assignedTo);
   }
   if (filters.status) {
-    query = query.eq('status', filters.status)
+    query = query.eq("status", filters.status);
   }
   if (filters.taskTypeId) {
-    query = query.eq('task_type_id', filters.taskTypeId)
+    query = query.eq("task_type_id", filters.taskTypeId);
   }
   if (filters.channelId) {
-    query = query.eq('channel_id', filters.channelId)
+    query = query.eq("channel_id", filters.channelId);
   }
   if (filters.marketingAdId) {
-    query = query.eq('marketing_ad_id', filters.marketingAdId)
+    query = query.eq("marketing_ad_id", filters.marketingAdId);
   }
   if (filters.priority) {
-    query = query.eq('priority', filters.priority)
+    query = query.eq("priority", filters.priority);
   }
   if (filters.search) {
-    query = query.ilike('file_name', `%${filters.search}%`)
+    query = query.ilike("file_name", `%${filters.search}%`);
   }
 
-  query = query.order('created_at', { ascending: true })
+  query = query.order("created_at", { ascending: true });
 
-  const { data, error } = await query
-  if (error) throw error
-  let tasks = (data ?? []) as Task[]
+  const { data, error } = await query;
+  if (error) throw error;
+  let tasks = (data ?? []) as Task[];
   if (filters.departmentId) {
-    tasks = tasks.filter(t => t.assigned_profile?.department_id === filters.departmentId)
+    tasks = tasks.filter(
+      (t) =>
+        t.source_content_id ||
+        t.assigned_profile?.department_id === filters.departmentId,
+    );
   }
-  return tasks
+  return tasks;
 }
 
 // ─── Fetch a single task by ID ────────────────────────────────────────────────
 
 export async function fetchTaskById(id: string): Promise<Task | null> {
   const { data, error } = await supabase
-    .from('tasks')
+    .from("tasks")
     .select(TASK_SELECT)
-    .eq('id', id)
-    .maybeSingle()
+    .eq("id", id)
+    .maybeSingle();
 
-  if (error) throw error
-  return data as Task | null
+  if (error) throw error;
+  return data as Task | null;
 }
 
 // ─── Create a new task ────────────────────────────────────────────────────────
 
 export async function createTask(payload: DbTaskInsert): Promise<Task> {
-  const completionError = payload.status === 'done' ? taskCompletionError(payload) : null
-  if (completionError) throw new Error(completionError)
+  const completionError =
+    payload.status === "done" ? taskCompletionError(payload) : null;
+  if (completionError) throw new Error(completionError);
   const { data, error } = await supabase
-    .from('tasks')
+    .from("tasks")
     .insert(payload)
     .select(TASK_SELECT)
-    .single()
+    .single();
 
-  if (error) throw error
-  return data as Task
+  if (error) throw error;
+  return data as Task;
 }
 
 // ─── Update an existing task ──────────────────────────────────────────────────
 
-export async function updateTask(id: string, payload: DbTaskUpdate): Promise<Task> {
-  if (payload.status === 'done') {
-    const current = await fetchTaskById(id)
-    if (!current) throw new Error('Task not found')
-    const completionError = taskCompletionError({ ...current, ...payload })
-    if (completionError) throw new Error(completionError)
+export async function updateTask(
+  id: string,
+  payload: DbTaskUpdate,
+): Promise<Task> {
+  if (payload.status === "done") {
+    const current = await fetchTaskById(id);
+    if (!current) throw new Error("Task not found");
+    const completionError = taskCompletionError({ ...current, ...payload });
+    if (completionError) throw new Error(completionError);
   }
   const { data, error } = await supabase
-    .from('tasks')
+    .from("tasks")
     .update({ ...payload, updated_at: new Date().toISOString() })
-    .eq('id', id)
+    .eq("id", id)
     .select(TASK_SELECT)
-    .single()
+    .single();
 
-  if (error) throw error
-  return data as Task
+  if (error) throw error;
+  return data as Task;
 }
 
-export async function markTaskDone(id: string, assignedUserId: string): Promise<void> {
-  const current = await fetchTaskById(id)
-  if (!current) throw new Error('Task not found')
-  const completionError = taskCompletionError(current)
-  if (completionError) throw new Error(completionError)
-  const { error } = await supabase.from('tasks')
-    .update({ status: 'done', updated_by: assignedUserId })
-    .eq('id', id).eq('assigned_to', assignedUserId).neq('status', 'done')
-    .select('id').single()
-  if (error) throw error
+export async function markTaskDone(
+  id: string,
+  assignedUserId: string,
+): Promise<void> {
+  const current = await fetchTaskById(id);
+  if (!current) throw new Error("Task not found");
+  const completionError = taskCompletionError(current);
+  if (completionError) throw new Error(completionError);
+  const { error } = await supabase
+    .from("tasks")
+    .update({ status: "done", updated_by: assignedUserId })
+    .eq("id", id)
+    .eq("assigned_to", assignedUserId)
+    .neq("status", "done")
+    .select("id")
+    .single();
+  if (error) throw error;
 }
 
 // ─── Update task status only (quick inline toggle) ───────────────────────────
@@ -122,64 +138,80 @@ export async function markTaskDone(id: string, assignedUserId: string): Promise<
 export async function updateTaskStatus(
   id: string,
   status: string,
-  updatedBy: string
+  updatedBy: string,
 ): Promise<void> {
-  if (status === 'done') {
-    await updateTask(id, { status, updated_by: updatedBy })
-    return
+  if (status === "done") {
+    await updateTask(id, { status, updated_by: updatedBy });
+    return;
   }
   const { error } = await supabase
-    .from('tasks')
-    .update({ status, updated_by: updatedBy, updated_at: new Date().toISOString() })
-    .eq('id', id)
+    .from("tasks")
+    .update({
+      status,
+      updated_by: updatedBy,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id);
 
-  if (error) throw error
+  if (error) throw error;
 }
 
 // ─── Delete a task (admin only — enforced by RLS) ─────────────────────────────
 
 export async function deleteTask(id: string): Promise<void> {
-  const { error } = await supabase.from('tasks').delete().eq('id', id)
-  if (error) throw error
+  const { error } = await supabase.from("tasks").delete().eq("id", id);
+  if (error) throw error;
 }
 
 // ─── Daily stats aggregation ─────────────────────────────────────────────────
 
 export async function fetchDailyStats(workDate: string) {
   const { data, error } = await supabase
-    .from('tasks')
-    .select('status')
-    .eq('work_date', workDate)
+    .from("tasks")
+    .select("status")
+    .eq("work_date", workDate);
 
-  if (error) throw error
+  if (error) throw error;
 
-  const statuses = (data ?? []).map((r) => r.status)
-  const total = statuses.length
-  const done = statuses.filter((s) => s === 'done').length
-  const in_progress = statuses.filter((s) => s === 'in_progress').length
-  const pending = statuses.filter((s) => s === 'pending').length
-  const assigned = statuses.filter((s) => s === 'assigned').length
-  const hold = statuses.filter((s) => s === 'hold').length
-  const cancelled = statuses.filter((s) => s === 'cancelled').length
-  const completion_rate = total > 0 ? Math.round((done / total) * 1000) / 10 : 0
+  const statuses = (data ?? []).map((r) => r.status);
+  const total = statuses.length;
+  const done = statuses.filter((s) => s === "done").length;
+  const in_progress = statuses.filter((s) => s === "in_progress").length;
+  const pending = statuses.filter((s) => s === "pending").length;
+  const assigned = statuses.filter((s) => s === "assigned").length;
+  const hold = statuses.filter((s) => s === "hold").length;
+  const cancelled = statuses.filter((s) => s === "cancelled").length;
+  const completion_rate =
+    total > 0 ? Math.round((done / total) * 1000) / 10 : 0;
 
-  return { total, done, in_progress, pending, assigned, hold, cancelled, completion_rate }
+  return {
+    total,
+    done,
+    in_progress,
+    pending,
+    assigned,
+    hold,
+    cancelled,
+    completion_rate,
+  };
 }
 
 // ─── Tasks by employee for a given date ──────────────────────────────────────
 
 export async function fetchTasksByEmployee(workDate: string) {
   const { data, error } = await supabase
-    .from('tasks')
-    .select(`
+    .from("tasks")
+    .select(
+      `
       assigned_to,
       status,
       assigned_profile:profiles!tasks_assigned_to_fkey(id, full_name, employee_code, avatar_url)
-    `)
-    .eq('work_date', workDate)
+    `,
+    )
+    .eq("work_date", workDate);
 
-  if (error) throw error
-  return data ?? []
+  if (error) throw error;
+  return data ?? [];
 }
 
 // ─── Fetch tasks for a specific marketing ad with date range ──────────────────
@@ -187,20 +219,25 @@ export async function fetchTasksByEmployee(workDate: string) {
 export async function fetchMarketingTasks(
   marketingAdId: string,
   startDate?: string,
-  endDate?: string
+  endDate?: string,
 ): Promise<Task[]> {
-  let query = supabase.from('tasks').select(TASK_SELECT).eq('marketing_ad_id', marketingAdId)
+  let query = supabase
+    .from("tasks")
+    .select(TASK_SELECT)
+    .eq("marketing_ad_id", marketingAdId);
 
   if (startDate) {
-    query = query.gte('work_date', startDate)
+    query = query.gte("work_date", startDate);
   }
   if (endDate) {
-    query = query.lte('work_date', endDate)
+    query = query.lte("work_date", endDate);
   }
 
-  query = query.order('work_date', { ascending: false }).order('created_at', { ascending: false })
+  query = query
+    .order("work_date", { ascending: false })
+    .order("created_at", { ascending: false });
 
-  const { data, error } = await query
-  if (error) throw error
-  return (data ?? []) as Task[]
+  const { data, error } = await query;
+  if (error) throw error;
+  return (data ?? []) as Task[];
 }

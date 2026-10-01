@@ -371,7 +371,9 @@
   height: 0.75rem;
 }
 .task-sheet .sheet-columns th:first-child {
-  width: 28px;
+  width: 44px;
+  min-width: 44px;
+  max-width: 44px;
 }
 .task-sheet .sheet-columns th:nth-child(2) {
   width: 11%;

@@ -26,19 +26,26 @@ import { ContentPackageRow } from "./ContentPackageRow";
 export function ContentCreatorPage() {
   const { user } = useAuth();
   const profile = useProfile(user?.id);
-  const canManage = ["administrator", "manager", "team_lead"].includes(
-    profile.data?.application_role ?? "",
-  );
+  const isContentCreatorDepartment = [
+    "content creator",
+    "content creator team",
+  ].includes(profile.data?.department?.name?.trim().toLowerCase() ?? "");
+  const isInchargeDepartment =
+    profile.data?.department?.name?.trim().toLowerCase() === "incharge";
+  const isAdmin = profile.data?.application_role === "administrator";
+  const canAccess = profile.data?.is_active === true;
+  const canApprove = isAdmin || isInchargeDepartment;
+  const canEditContent = isAdmin || isContentCreatorDepartment;
   const [params] = useSearchParams();
   const people = useQuery({
     queryKey: ["content-creators"],
     queryFn: fetchContentCreators,
-    enabled: !!user,
+    enabled: !!user && profile.isSuccess && canAccess,
   });
   const query = useQuery({
     queryKey: ["content-packages", user?.id],
     queryFn: fetchContentPackages,
-    enabled: !!user,
+    enabled: !!user && profile.isSuccess && canAccess,
     refetchInterval: 30000,
   });
   const [view, setView] = useState("all");
@@ -74,6 +81,17 @@ export function ContentCreatorPage() {
       ].some((value) => value?.toLowerCase().includes(q))
     );
   });
+  if (profile.isSuccess && !canAccess) {
+    return (
+      <div className="p-6" role="alert">
+        <h1 className="text-xl font-bold">Content Creator access required</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Only Content Creator team members and administrators can use this
+          section.
+        </p>
+      </div>
+    );
+  }
   return (
     <div className="p-3 sm:p-6 space-y-4">
       <div>
@@ -259,18 +277,22 @@ export function ContentCreatorPage() {
                   key={entry.id}
                   entry={entry}
                   userId={user.id}
-                  canManage={canManage}
+                  canApprove={canApprove}
+                  canEditContent={canEditContent}
+                  isAdmin={isAdmin}
                   people={people.data ?? []}
                   highlighted={params.get("package") === entry.id}
                   unavailable={!query.isSuccess || !people.isSuccess}
                 />
               ))}
-            {user && (
+            {user && canEditContent && (
               <SheetDraftRows>
                 {(actions) => (
                   <ContentPackageRow
                     userId={user.id}
-                    canManage={canManage}
+                    canApprove={canApprove}
+                    canEditContent={canEditContent}
+                    isAdmin={isAdmin}
                     people={people.data ?? []}
                     unavailable={!query.isSuccess || !people.isSuccess}
                     {...actions}

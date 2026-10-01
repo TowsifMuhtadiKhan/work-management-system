@@ -1,52 +1,60 @@
-import { taskCompletionError } from '@/utils/taskCompletion'
-import { CaptionEditor } from './CaptionEditor'
-import { useState, useEffect } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { Loader2 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
+import { taskCompletionError } from "@/utils/taskCompletion";
+import { CaptionEditor } from "./CaptionEditor";
+import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select'
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter,
-  DialogHeader, DialogTitle,
-} from '@/components/ui/dialog'
-import { createTask, updateTask } from '@/services/tasks.service'
-import { fetchAssignableProfiles } from '@/services/profiles.service'
-import { fetchTaskTypes } from '@/services/taskTypes.service'
-import { fetchChannels } from '@/services/channels.service'
-import { fetchMarketingAds } from '@/services/marketingAds.service'
-import type { Task, Profile } from '@/types/entities'
-import type { TaskFormValues } from '@/types/entities'
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { createTask, updateTask } from "@/services/tasks.service";
+import { fetchAssignableProfiles } from "@/services/profiles.service";
+import { fetchTaskTypes } from "@/services/taskTypes.service";
+import { fetchChannels } from "@/services/channels.service";
+import { fetchMarketingAds } from "@/services/marketingAds.service";
+import type { Task, Profile } from "@/types/entities";
+import type { TaskFormValues } from "@/types/entities";
 
 interface TaskFormDialogProps {
-  mode: 'create' | 'edit'
-  task?: Task
-  workDate: string
-  currentProfile: Profile | null
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  onSuccess: () => void
+  mode: "create" | "edit";
+  task?: Task;
+  workDate: string;
+  currentProfile: Profile | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSuccess: () => void;
 }
 
 const DEFAULT_FORM: TaskFormValues = {
-  work_date: '',
-  file_name: '',
-  task_type_id: '',
-  assigned_to: '',
-  status: 'pending',
-  channel_id: '',
-  marketing_ad_id: '',
-  remarks: '',
-  caption: '',
-  youtube_link: '',
-  facebook_link: '',
-  google_drive_link: '',
-  priority: 'normal',
-}
+  work_date: "",
+  file_name: "",
+  task_type_id: "",
+  assigned_to: "",
+  status: "pending",
+  channel_id: "",
+  marketing_ad_id: "",
+  remarks: "",
+  caption: "",
+  youtube_link: "",
+  facebook_link: "",
+  google_drive_link: "",
+  priority: "normal",
+};
 
 export function TaskFormDialog({
   mode,
@@ -60,74 +68,77 @@ export function TaskFormDialog({
   const [form, setForm] = useState<TaskFormValues>({
     ...DEFAULT_FORM,
     work_date: workDate,
-  })
-  const [submitting, setSubmitting] = useState(false)
+  });
+  const [submitting, setSubmitting] = useState(false);
 
   // Populate form when editing
   useEffect(() => {
-    if (mode === 'edit' && task) {
+    if (mode === "edit" && task) {
       setForm({
         work_date: task.work_date,
         file_name: task.file_name,
         task_type_id: task.task_type_id,
-        assigned_to: task.assigned_to,
+        assigned_to: task.assigned_to ?? "",
         status: task.status,
-        channel_id: task.channel_id ?? '',
-        marketing_ad_id: task.marketing_ad_id ?? '',
-        remarks: task.remarks ?? '',
-        caption: task.caption ?? '',
-        youtube_link: task.youtube_link ?? '',
-        facebook_link: task.facebook_link ?? '',
-        google_drive_link: task.google_drive_link ?? '',
+        channel_id: task.channel_id ?? "",
+        marketing_ad_id: task.marketing_ad_id ?? "",
+        remarks: task.remarks ?? "",
+        caption: task.caption ?? "",
+        youtube_link: task.youtube_link ?? "",
+        facebook_link: task.facebook_link ?? "",
+        google_drive_link: task.google_drive_link ?? "",
         priority: task.priority,
-      })
+      });
     } else {
-      setForm({ ...DEFAULT_FORM, work_date: workDate })
+      setForm({ ...DEFAULT_FORM, work_date: workDate });
     }
-  }, [mode, task, workDate])
+  }, [mode, task, workDate]);
 
   // Reference data
   const { data: profiles = [] } = useQuery({
-    queryKey: ['assignable-profiles'],
+    queryKey: ["assignable-profiles"],
     queryFn: fetchAssignableProfiles,
     staleTime: 5 * 60 * 1000,
-  })
+  });
   const { data: taskTypes = [] } = useQuery({
-    queryKey: ['task-types'],
+    queryKey: ["task-types"],
     queryFn: fetchTaskTypes,
     staleTime: 10 * 60 * 1000,
-  })
+  });
   const { data: channels = [] } = useQuery({
-    queryKey: ['channels'],
+    queryKey: ["channels"],
     queryFn: fetchChannels,
     staleTime: 10 * 60 * 1000,
-  })
+  });
   const { data: marketingAds = [] } = useQuery({
-    queryKey: ['marketing-ads', task?.work_section ?? 'digital'],
-    queryFn: () => fetchMarketingAds(task?.work_section ?? 'digital'),
+    queryKey: ["marketing-ads", task?.work_section ?? "digital"],
+    queryFn: () => fetchMarketingAds(task?.work_section ?? "digital"),
     staleTime: 10 * 60 * 1000,
-  })
+  });
 
   const set = (field: keyof TaskFormValues) => (value: string) =>
-    setForm((prev) => ({ ...prev, [field]: value }))
+    setForm((prev) => ({ ...prev, [field]: value }));
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
     if (!form.file_name.trim() || !form.task_type_id || !form.assigned_to) {
-      return
+      return;
     }
-    if (!currentProfile) return
-    const completionError = taskCompletionError(form)
-    if (form.status === 'done' && completionError) { alert(completionError); return }
+    if (!currentProfile) return;
+    const completionError = taskCompletionError(form);
+    if (form.status === "done" && completionError) {
+      alert(completionError);
+      return;
+    }
 
-    setSubmitting(true)
+    setSubmitting(true);
     try {
       const payload = {
         work_date: form.work_date,
         file_name: form.file_name.trim(),
         task_type_id: form.task_type_id,
         assigned_to: form.assigned_to,
-        status: form.status as Task['status'],
+        status: form.status as Task["status"],
         channel_id: form.channel_id || null,
         marketing_ad_id: form.marketing_ad_id || null,
         remarks: form.remarks.trim() || null,
@@ -135,39 +146,42 @@ export function TaskFormDialog({
         youtube_link: form.youtube_link.trim() || null,
         facebook_link: form.facebook_link.trim() || null,
         google_drive_link: form.google_drive_link.trim() || null,
-        priority: form.priority as Task['priority'],
+        priority: form.priority as Task["priority"],
+      };
+
+      if (mode === "create") {
+        await createTask({ ...payload, created_by: currentProfile.id });
+      } else if (mode === "edit" && task) {
+        await updateTask(task.id, {
+          ...payload,
+          updated_by: currentProfile.id,
+        });
       }
 
-      if (mode === 'create') {
-        await createTask({ ...payload, created_by: currentProfile.id })
-      } else if (mode === 'edit' && task) {
-        await updateTask(task.id, { ...payload, updated_by: currentProfile.id })
-      }
-
-      onSuccess()
-      onOpenChange(false)
+      onSuccess();
+      onOpenChange(false);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to save task'
+      const msg = err instanceof Error ? err.message : "Failed to save task";
       // Surface RLS errors clearly
-      if (msg.includes('RLS') || msg.includes('policy')) {
-        alert('Permission denied: you are not authorized to edit this task.')
+      if (msg.includes("RLS") || msg.includes("policy")) {
+        alert("Permission denied: you are not authorized to edit this task.");
       } else {
-        alert(msg)
+        alert(msg);
       }
     } finally {
-      setSubmitting(false)
+      setSubmitting(false);
     }
-  }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {mode === 'create' ? 'Add Assignment' : 'Edit Task'}
+            {mode === "create" ? "Add Assignment" : "Edit Task"}
           </DialogTitle>
           <DialogDescription>
-            {mode === 'create'
+            {mode === "create"
               ? `Creating task for ${form.work_date}`
               : `Editing: ${task?.file_name}`}
           </DialogDescription>
@@ -182,7 +196,7 @@ export function TaskFormDialog({
             <Input
               id="file_name"
               value={form.file_name}
-              onChange={(e) => set('file_name')(e.target.value)}
+              onChange={(e) => set("file_name")(e.target.value)}
               placeholder="e.g. 20260926_BULLETIN_Govt_Policy"
               required
             />
@@ -194,7 +208,11 @@ export function TaskFormDialog({
               <Label>
                 Task Type <span className="text-destructive">*</span>
               </Label>
-              <Select value={form.task_type_id} onValueChange={set('task_type_id')} required>
+              <Select
+                value={form.task_type_id}
+                onValueChange={set("task_type_id")}
+                required
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select type…" />
                 </SelectTrigger>
@@ -218,7 +236,11 @@ export function TaskFormDialog({
               <Label>
                 Assigned To <span className="text-destructive">*</span>
               </Label>
-              <Select value={form.assigned_to} onValueChange={set('assigned_to')} required>
+              <Select
+                value={form.assigned_to}
+                onValueChange={set("assigned_to")}
+                required
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select employee…" />
                 </SelectTrigger>
@@ -227,7 +249,9 @@ export function TaskFormDialog({
                     <SelectItem key={p.id} value={p.id}>
                       {p.full_name}
                       {p.employee_code && (
-                        <span className="text-muted-foreground ml-1">({p.employee_code})</span>
+                        <span className="text-muted-foreground ml-1">
+                          ({p.employee_code})
+                        </span>
                       )}
                     </SelectItem>
                   ))}
@@ -240,7 +264,7 @@ export function TaskFormDialog({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>Status</Label>
-              <Select value={form.status} onValueChange={set('status')}>
+              <Select value={form.status} onValueChange={set("status")}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -248,7 +272,17 @@ export function TaskFormDialog({
                   <SelectItem value="pending">Pending</SelectItem>
                   <SelectItem value="assigned">Assigned</SelectItem>
                   <SelectItem value="in_progress">In Progress</SelectItem>
-                    <SelectItem value="done" disabled={!!taskCompletionError(form) || !currentProfile?.is_active || form.assigned_to !== currentProfile.id || (!!task && task.assigned_to !== currentProfile.id)}>Done</SelectItem>
+                  <SelectItem
+                    value="done"
+                    disabled={
+                      !!taskCompletionError(form) ||
+                      !currentProfile?.is_active ||
+                      form.assigned_to !== currentProfile.id ||
+                      (!!task && task.assigned_to !== currentProfile.id)
+                    }
+                  >
+                    Done
+                  </SelectItem>
                   <SelectItem value="hold">Hold</SelectItem>
                   <SelectItem value="cancelled">Cancelled</SelectItem>
                 </SelectContent>
@@ -257,7 +291,7 @@ export function TaskFormDialog({
 
             <div className="space-y-1.5">
               <Label>Priority</Label>
-              <Select value={form.priority} onValueChange={set('priority')}>
+              <Select value={form.priority} onValueChange={set("priority")}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -275,7 +309,7 @@ export function TaskFormDialog({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>Channel / Page</Label>
-              <Select value={form.channel_id} onValueChange={set('channel_id')}>
+              <Select value={form.channel_id} onValueChange={set("channel_id")}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select channel…" />
                 </SelectTrigger>
@@ -286,7 +320,7 @@ export function TaskFormDialog({
                       <span className="flex items-center gap-2">
                         <span
                           className="h-2 w-2 rounded-full inline-block shrink-0"
-                          style={{ background: ch.color_hex || '#3B82F6' }}
+                          style={{ background: ch.color_hex || "#3B82F6" }}
                         />
                         {ch.name}
                       </span>
@@ -298,7 +332,10 @@ export function TaskFormDialog({
 
             <div className="space-y-1.5">
               <Label>Marketing Ad</Label>
-              <Select value={form.marketing_ad_id} onValueChange={set('marketing_ad_id')}>
+              <Select
+                value={form.marketing_ad_id}
+                onValueChange={set("marketing_ad_id")}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select advertiser…" />
                 </SelectTrigger>
@@ -320,7 +357,7 @@ export function TaskFormDialog({
             <Textarea
               id="remarks"
               value={form.remarks}
-              onChange={(e) => set('remarks')(e.target.value)}
+              onChange={(e) => set("remarks")(e.target.value)}
               placeholder="Internal notes or production remarks…"
               rows={2}
             />
@@ -329,7 +366,11 @@ export function TaskFormDialog({
           {/* Row 6: Caption */}
           <div className="space-y-1.5">
             <Label htmlFor="caption">Caption</Label>
-            <CaptionEditor value={form.caption} onChange={set('caption')} disabled={submitting} />
+            <CaptionEditor
+              value={form.caption}
+              onChange={set("caption")}
+              disabled={submitting}
+            />
           </div>
 
           {/* Row 7: Links */}
@@ -340,7 +381,7 @@ export function TaskFormDialog({
                 id="youtube_link"
                 type="url"
                 value={form.youtube_link}
-                onChange={(e) => set('youtube_link')(e.target.value)}
+                onChange={(e) => set("youtube_link")(e.target.value)}
                 placeholder="https://youtube.com/watch?v=…"
               />
             </div>
@@ -350,7 +391,7 @@ export function TaskFormDialog({
                 id="facebook_link"
                 type="url"
                 value={form.facebook_link}
-                onChange={(e) => set('facebook_link')(e.target.value)}
+                onChange={(e) => set("facebook_link")(e.target.value)}
                 placeholder="https://facebook.com/…"
               />
             </div>
@@ -360,23 +401,27 @@ export function TaskFormDialog({
                 id="google_drive_link"
                 type="url"
                 value={form.google_drive_link}
-                onChange={(e) => set('google_drive_link')(e.target.value)}
+                onChange={(e) => set("google_drive_link")(e.target.value)}
                 placeholder="https://drive.google.com/…"
               />
             </div>
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+            >
               Cancel
             </Button>
             <Button type="submit" disabled={submitting}>
               {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {mode === 'create' ? 'Create Task' : 'Save Changes'}
+              {mode === "create" ? "Create Task" : "Save Changes"}
             </Button>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
-  )
+  );
 }
