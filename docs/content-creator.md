@@ -20,7 +20,7 @@ Apply `supabase/migrations/20260930152002_content_export_workflow.sql` after the
 | Selected work date | Work date |
 | Selected time section | Time slot (or Unscheduled) |
 | Selected task type | Task type |
-| Selected assigned person (defaults to creator) | Assigned person |
+| Package creator (assigned automatically) | Assigned person |
 | Package ID | Content source link |
 
 Tasks start Pending with Normal priority. Script stays on the linked source package.
